@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf, fval %}
+{% block title %}{{ wf.name if wf else 'Create workflow' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ wf.name if wf else 'Create workflow' }}</h1>
+  <p>Requests already submitted keep the stages they were submitted with. Approvers must hold the "approve leave" permission and can never approve their own leave.</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.workflows') }}">Back</a></div>
+<section class="panel">
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field"><label for="nm">Name</label><input type="text" id="nm" name="name" required maxlength="80" value="{{ form.get('name', wf.name if wf else '') }}"></div>
+      <div class="field"><label for="ds">Description</label><input type="text" id="ds" name="description" maxlength="300" value="{{ form.get('description', (wf.description or '') if wf else '') }}"></div>
+    </div>
+    <label class="check"><input type="checkbox" name="is_default" value="1" {{ 'checked' if (form.get('is_default') if form else (wf and wf.is_default)) }}> <span>Default workflow (used by leave types without a specific workflow)</span></label>
+    <label class="check"><input type="checkbox" name="is_active" value="1" {{ 'checked' if (form.get('is_active') if form else (not wf or wf.is_active)) }}> <span>Active</span></label>
+
+    <h2 class="mt">Stages</h2>
+    <p class="muted small">Fill a row to add a stage; tick "Remove" to delete one. The first stage must apply to every request.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Order</th><th>Stage name</th><th>Approved by</th><th>Approver</th><th>Fallback role</th><th>Only if days &gt;</th><th>Remove</th></tr></thead>
+      <tbody>
+      {% for s in slots %}{% set i = loop.index0 %}
+        <tr data-stage>
+          <td><input type="number" name="stage_order_{{ i }}" min="1" max="99" value="{{ form.get('stage_order_' ~ i, i + 1) }}"></td>
+          <td><input type="text" name="stage_name_{{ i }}" maxlength="80" value="{{ form.get('stage_name_' ~ i, s.name if s else '') }}" placeholder="e.g. Reporting Officer"></td>
+          <td><select class="stage-type" name="stage_type_{{ i }}">
+            {% set cur = form.get('stage_type_' ~ i, s.approver_type if s else 'REPORTING_OFFICER') %}
+            {% for k, label in approver_types.items() %}<option value="{{ k }}" {{ 'selected' if cur == k }}>{{ label }}</option>{% endfor %}</select></td>
+          <td>
+            <div data-for="ROLE"><select name="stage_role_{{ i }}"><option value="">— Role —</option>
+              {% set cr = form.get('stage_role_' ~ i, (s.approver_role_id if s else '')|string) %}
+              {% for r in roles %}<option value="{{ r.id }}" {{ 'selected' if cr == r.id|string }}>{{ r.name }}</option>{% endfor %}</select></div>
+            <div data-for="USER"><select name="stage_user_{{ i }}"><option value="">— User —</option>
+              {% set cu = form.get('stage_user_' ~ i, (s.approver_user_id if s else '')|string) %}
+              {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if cu == u.id|string }}>{{ u.full_name }} ({{ u.username }})</option>{% endfor %}</select></div>
+            <div data-for="REPORTING_OFFICER" class="muted small">Resolved per applicant</div>
+          </td>
+          <td><select name="stage_fallback_{{ i }}"><option value="">— None —</option>
+            {% set cf = form.get('stage_fallback_' ~ i, (s.fallback_role_id if s else '')|string) %}
+            {% for r in roles %}<option value="{{ r.id }}" {{ 'selected' if cf == r.id|string }}>{{ r.name }}</option>{% endfor %}</select></td>
+          <td><input type="number" step="0.5" min="0" name="stage_min_days_{{ i }}" value="{{ form.get('stage_min_days_' ~ i, fval(s.min_days) if s else '') }}"></td>
+          <td><input type="checkbox" name="stage_remove_{{ i }}" value="1" aria-label="Remove stage"></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="muted small">Fallback role: used when the primary approver cannot act (no reporting officer mapped, account inactive, approver lacks approval rights, or the approver is the applicant).</p>
+    <button class="btn mt" type="submit">Save workflow</button>
+  </form>
+</section>
+{% endblock %}

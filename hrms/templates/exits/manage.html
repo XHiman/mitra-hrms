@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Resignations{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Resignations</h1>
+  <p>{% if can('exit.manage') %}All resignations. Accept them, complete the exit clearance and relieve staff on their last working day.
+  {% else %}Resignations from your team. Add your remarks and forward them to HR.{% endif %}</p></div></div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Waiting for you ({{ pending|length }})</h2></div>
+  {% include "exits/_table.html" with context %}
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>All resignations you can see</h2></div>
+  {% set pending = rows %}
+  {% include "exits/_table.html" with context %}
+</section>
+{% endblock %}

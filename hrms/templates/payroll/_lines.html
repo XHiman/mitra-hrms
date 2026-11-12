@@ -1,0 +1,14 @@
+{% macro line_inputs(form, rows, prefix, title, placeholder) -%}
+<h3 class="mt">{{ title }}</h3>
+<table class="lines">
+  <thead><tr><th>Item</th><th class="num">Amount (₹ per month)</th></tr></thead>
+  <tbody>
+  {% for i in rows %}
+    <tr><td><input type="text" name="{{ prefix }}_name_{{ i }}" maxlength="80" value="{{ form.get(prefix ~ '_name_' ~ i, '') }}"
+               {% if i == 0 %}placeholder="{{ placeholder }}"{% endif %} aria-label="{{ title }} item {{ i + 1 }}"></td>
+        <td><input type="text" inputmode="decimal" class="num" name="{{ prefix }}_amount_{{ i }}" maxlength="15"
+               value="{{ form.get(prefix ~ '_amount_' ~ i, '') }}" aria-label="{{ title }} amount {{ i + 1 }}"></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{%- endmacro %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import balance_table, contract_state, csrf %}
+{% block title %}My profile{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>My profile</h1><p>Employee master record. Contact the administrator to correct any details.</p></div></div>
+<div class="grid grid-2">
+  <section class="panel">
+    <h2>Employee details</h2>
+    <dl class="facts">
+      <dt>Employee ID</dt><dd>{{ emp.emp_code }}</dd>
+      <dt>Name</dt><dd>{{ emp.full_name }}</dd>
+      <dt>Designation</dt><dd>{{ emp.designation or '—' }}</dd>
+      <dt>Department / Team</dt><dd>{{ emp.department or '—' }}</dd>
+      <dt>Reporting officer</dt><dd>{{ emp.reporting_officer or '—' }}</dd>
+      <dt>Role</dt><dd>{{ emp.role_name }}</dd>
+      <dt>Date of joining</dt><dd>{{ emp.joining_date|date or '—' }}</dd>
+      <dt>Contract ends</dt><dd>{{ emp.contract_end_date|date if emp.contract_end_date else 'Not recorded' }}</dd>
+      {% if contract %}
+      <dt>Current contract from</dt><dd>{{ contract.term_start|date }}</dd>
+      <dt>Contract</dt><dd>{{ contract_state(cstatus) }}</dd>
+      <dt>Contract history</dt><dd>Joined {{ contract.joining|date }}{% for r in contract.renewals %}<br>Renewal {{ r.renewal_date|date }}{% if r.note %} <span class="muted small">({{ r.note }})</span>{% endif %}{% endfor %}</dd>
+      {% endif %}
+      <dt>Leave cycle</dt><dd>{{ cycle.label }}</dd>
+      <dt>Employment type</dt><dd>{{ emp.employment_type or '—' }}</dd>
+      <dt>Status</dt><dd>{{ emp.status|title }}</dd>
+      <dt>Email</dt><dd>{{ emp.email or '—' }}</dd>
+      <dt>Username</dt><dd>{{ emp.username }}</dd>
+    </dl>
+  </section>
+  <section class="panel" id="birthday">
+    <h2>Birthday</h2>
+    <form method="post" action="{{ url_for('dashboards.profile_birthday') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><label for="dob">Date of birth</label>
+        <input type="date" id="dob" name="date_of_birth" value="{{ emp.date_of_birth or '' }}"></div>
+      <label class="check"><input type="checkbox" name="show_birthday" value="1" {{ 'checked' if emp.show_birthday }}>
+        <span>Show my birthday on the MITRA calendar</span></label>
+      <p class="small muted">Colleagues see only the day and month, never the year or your age.</p>
+      <button class="btn" type="submit">Save</button>
+    </form>
+  </section>
+  {% with own = true %}{% include "dashboards/_people.html" %}{% endwith %}
+  <section class="panel"><h2>Leave balance</h2>{{ balance_table(balances, cycle) }}</section>
+</div>
+{% endblock %}

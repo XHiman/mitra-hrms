@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf, status %}
+{% block title %}Comp-off{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Compensatory off</h1>
+  <p>Claim comp-off for work done on a weekly off or holiday. The officer who assigned the work approves it; approved days are added to your {{ lt.name if lt else 'Compensatory Off' }} balance.</p></div>
+  {% if lt and can('leave.apply') %}<a class="btn secondary" href="{{ url_for('leave.apply') }}">Avail comp-off (apply leave)</a>{% endif %}</div>
+
+{% if not lt %}
+<div class="notice">Compensatory off is not configured yet. Please contact the administrator.</div>
+{% else %}
+<div class="grid grid-3">
+<section class="panel">
+  <h2>New comp-off claim</h2>
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  {% if not approvers %}<div class="notice">No officer with comp-off approval rights is available. Please contact the administrator.</div>{% endif %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field"><label for="wd">Date worked</label><input type="date" id="wd" name="worked_date" required max="{{ today }}" value="{{ form.get('worked_date', '') }}"></div>
+      <div class="field"><label for="dy">Duration</label>
+        <select id="dy" name="days" required>
+          <option value="1" {{ 'selected' if form.get('days') != '0.5' }}>Full day</option>
+          <option value="0.5" {{ 'selected' if form.get('days') == '0.5' }}>Half day</option>
+        </select></div>
+      <div class="field full"><label for="ap">Work assigned by</label>
+        <select id="ap" name="approver_user_id" required>
+          <option value="">— Select the officer —</option>
+          {% for a in approvers %}
+            <option value="{{ a.id }}" {{ 'selected' if form.get('approver_user_id') == a.id|string }}>{{ a.full_name }}, {{ a.designation or a.role_name }}{% if a.is_ro %} (reporting officer){% endif %}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">Only this officer can approve the claim.</div></div>
+      <div class="field full"><label for="wk">Work done</label><textarea id="wk" name="work_details" required maxlength="1000" placeholder="Task, event or assignment you worked on">{{ form.get('work_details', '') }}</textarea></div>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Submit claim</button></div>
+  </form>
+</section>
+<section class="panel">
+  <h2>{{ lt.name }} balance</h2>
+  {% if balance %}
+  <ul class="list">
+    <li><strong>{{ balance.available|days }}</strong> day(s) available</li>
+    <li class="small muted">Earned {{ balance.entitlement|days }}, used {{ balance.used|days }}, pending {{ balance.pending|days }}</li>
+  </ul>
+  <p class="muted small">Leave cycle {{ cycle.label }}. Credits count towards the leave cycle in which the work was done.</p>
+  {% endif %}
+</section>
+</div>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-head"><h2>My comp-off claims</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Date worked</th><th class="num">Days</th><th>Work done</th><th>Assigned by</th><th>Status</th><th>Remarks</th><th></th></tr></thead>
+    <tbody>
+    {% for c in claims %}
+      <tr><td>{{ c.id }}</td><td class="nowrap">{{ c.worked_date|date }}</td><td class="num">{{ c.days|days }}</td>
+        <td class="small">{{ c.work_details|truncate(90) }}</td><td>{{ c.approver_name }}</td>
+        <td>{{ status(c.status) }}{% if c.decided_by_name and c.decided_by != c.approver_user_id %}<div class="muted small">by {{ c.decided_by_name }}</div>{% endif %}</td>
+        <td class="small">{{ c.decision_remarks or '' }}</td>
+        <td>{% if c.status == 'PENDING' %}
+          <form method="post" action="{{ url_for('compoff.withdraw', claim_id=c.id) }}">{{ csrf() }}
+            <button class="btn secondary small" data-confirm="Withdraw this comp-off claim?">Withdraw</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="8" class="empty">You have not made any comp-off claims. If you worked on a weekly off or holiday at an officer's request, claim it with the form above.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

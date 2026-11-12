@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Roles &amp; permissions{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Roles &amp; permissions</h1>
+  <p>Every permission is enforced on the server. Segregation of duties: a role that approves leave cannot also administer users, roles, workflows or leave configuration.</p></div>
+  <a class="btn" href="{{ url_for('admin.role_edit') }}">Create role</a></div>
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Permission</th>{% for r in roles %}<th class="right"><a href="{{ url_for('admin.role_edit', role_id=r.id) }}">{{ r.name }}</a><div class="muted small">{{ r.user_count }} user(s)</div></th>{% endfor %}</tr></thead>
+    <tbody>
+    {% set ns = namespace(module='') %}
+    {% for code, module, desc in permissions %}
+      {% if module != ns.module %}{% set ns.module = module %}<tr><td colspan="{{ roles|length + 1 }}"><strong>{{ module }}</strong></td></tr>{% endif %}
+      <tr><td>{{ desc }}<div class="muted small">{{ code }}</div></td>
+        {% for r in roles %}<td class="right">{% if (r.id, code) in grants %}<span class="badge good">Yes</span>{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

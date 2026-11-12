@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Approval workflows{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Approval workflows</h1>
+  <p>The approval hierarchy. Stages run in order; a request is approved when every applicable stage approves. Any stage may reject.</p></div>
+  <a class="btn" href="{{ url_for('admin.workflow_edit') }}">Create workflow</a></div>
+{% for w in rows %}
+<section class="panel">
+  <div class="panel-head"><h2>{{ w.name }} {% if w.is_default %}<span class="badge good">Default</span>{% endif %}{% if not w.is_active %} <span class="badge neutral">Inactive</span>{% endif %}</h2>
+    <a class="btn secondary small" href="{{ url_for('admin.workflow_edit', workflow_id=w.id) }}">Edit</a></div>
+  <p class="muted">{% if w.description %}{{ w.description }} {% endif %}(assigned to {{ w.type_count }} leave type(s))</p>
+  <ol>
+    {% for s in stages[w.id] %}
+      <li><strong>{{ s.name }}</strong> —
+        {% if s.approver_type == 'REPORTING_OFFICER' %}applicant's reporting officer{% elif s.approver_type == 'ROLE' %}any {{ s.role_name }}{% else %}user {{ s.username }}{% endif %}
+        {% if s.fallback_name %}<span class="muted">(fallback: {{ s.fallback_name }})</span>{% endif %}
+        {% if s.min_days is not none %}<span class="badge warning">only if more than {{ s.min_days|days }} day(s)</span>{% endif %}</li>
+    {% endfor %}
+  </ol>
+</section>
+{% else %}<section class="panel"><p class="empty">No workflows configured.</p></section>{% endfor %}
+{% endblock %}

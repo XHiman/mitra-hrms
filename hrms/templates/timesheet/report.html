@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Timesheet report{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Timesheet report: {{ first.strftime('%B %Y') }}</h1>
+  <p>Hours recorded by staff in your scope, by project and by person. Includes weeks not yet submitted.</p></div>
+  <form method="get" class="inline-form">
+    <div class="field"><label for="mo">Month</label><input type="month" id="mo" name="month" value="{{ month }}"></div>
+    <button class="btn secondary" type="submit">Show</button>
+    <a class="btn secondary" href="{{ url_for('timesheet.report', month=month, format='csv') }}">Download for Excel</a>
+  </form></div>
+<div class="grid grid-3">
+<section class="panel">
+  <h2>Hours by person</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th>{% for p in project_names %}<th class="num">{{ p }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+    <tbody>
+    {% for (code, name), hours in by_person.items() %}
+      <tr><td>{{ name }}<div class="muted small">{{ code }}</div></td>
+        {% for p in project_names %}<td class="num">{{ hours.get(p, 0)|days if hours.get(p) else '' }}</td>{% endfor %}
+        <td class="num"><strong>{{ hours.values()|sum|days }}</strong></td></tr>
+    {% else %}<tr><td colspan="{{ project_names|length + 2 }}" class="empty">No hours recorded for this month.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+<section class="panel">
+  <h2>Hours by project</h2>
+  <table>
+    <thead><tr><th>Project</th><th class="num">Hours</th><th class="num">Share</th></tr></thead>
+    <tbody>
+    {% for p, h in by_project %}<tr><td>{{ p }}</td><td class="num">{{ h|days }}</td><td class="num">{{ (100 * h / total)|round|int }}%</td></tr>
+    {% else %}<tr><td colspan="3" class="empty">—</td></tr>{% endfor %}
+    </tbody>
+    {% if total %}<tfoot><tr><th>Total</th><th class="num">{{ total|days }}</th><th></th></tr></tfoot>{% endif %}
+  </table>
+</section>
+</div>
+{% endblock %}

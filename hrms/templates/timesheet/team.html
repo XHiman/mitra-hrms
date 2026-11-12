@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Team timesheets{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Team timesheets</h1><p>Week of {{ start|date }} to {{ end|date }}{% if group %}, {{ groups[group] }} only{% endif %}.</p></div>
+  <div class="cal-nav">
+    <a class="btn secondary small" href="{{ url_for('timesheet.team', week=prev, group=group or None) }}">‹ Previous week</a>
+    {% if start != this_week %}<a class="btn secondary small" href="{{ url_for('timesheet.team', group=group or None) }}">This week</a>
+    <a class="btn secondary small" href="{{ url_for('timesheet.team', week=nxt, group=group or None) }}">Next week ›</a>{% endif %}
+    <a class="btn secondary small" href="{{ url_for('timesheet.report') }}">Monthly report</a>
+  </div></div>
+<nav class="tabs" aria-label="Staff group">
+  {% for k, label in groups.items() %}<a href="{{ url_for('timesheet.team', week=start.isoformat(), group=k or None) }}" class="{{ 'here' if k == group }}">{{ label }}</a>{% endfor %}
+</nav>
+<section class="kpis">
+  <div class="kpi"><div class="label">Submitted</div><div class="value">{{ counts.submitted }}</div><div class="sub">of {{ rows|length }} staff</div></div>
+  <div class="kpi"><div class="label">Draft</div><div class="value">{{ counts.draft }}</div><div class="sub">started, not submitted</div></div>
+  <div class="kpi {{ 'alert' if counts.missing }}"><div class="label">Not started</div><div class="value">{{ counts.missing }}</div><div class="sub">no entries this week</div></div>
+  <div class="kpi"><div class="label">Short of hours</div><div class="value">{{ counts.short }}</div><div class="sub">below the expected hours</div></div>
+</section>
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Designation / Dept.</th><th>Status</th><th class="num">Hours</th><th class="num">Expected so far</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><strong>{{ r.full_name }}</strong><div class="muted small">{{ r.emp_code }}</div></td>
+        <td>{{ r.designation or '—' }}<div class="muted small">{{ r.department or '' }}</div></td>
+        <td>{% if r.status == 'SUBMITTED' %}<span class="badge APPROVED">Submitted</span>{% elif r.status == 'DRAFT' %}<span class="badge PENDING">Draft</span>{% else %}<span class="badge neutral">Not started</span>{% endif %}</td>
+        <td class="num{% if r.short %} due-soon{% endif %}">{{ (r.total_hours or 0)|days }}</td><td class="num">{{ r.expected|days }}</td>
+        <td class="nowrap"><a href="{{ url_for('timesheet.view', employee_id=r.id, week=start.isoformat()) }}">Week</a>
+          <a href="{{ url_for('timesheet.view', employee_id=r.id, month=start.strftime('%Y-%m')) }}">Calendar</a></td></tr>
+    {% else %}<tr><td colspan="6" class="empty">{{ 'No ' ~ groups[group]|lower ~ ' in your scope.' if group else 'No staff in your scope.' }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Timesheet{% if not own %} {{ emp.full_name }}{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{% if own %}My timesheet: week view{% else %}Timesheet: {{ emp.full_name }}{% endif %}</h1>
+  <p>{% if not own %}{{ emp.emp_code }}{% if emp.designation %}, {{ emp.designation }}{% endif %}. {% endif %}Week of {{ start|date }} to {{ end|date }}.
+    {% if v.sheet and v.sheet.status == 'SUBMITTED' %}<span class="badge APPROVED">Submitted</span> on {{ v.sheet.submitted_at|dt }}{% elif v.sheet %}<span class="badge PENDING">Draft</span>{% else %}<span class="badge neutral">Not started</span>{% endif %}</p></div>
+  <div class="cal-nav">
+    {% if own %}
+    <a class="btn secondary small" href="{{ url_for('timesheet.week', week=prev) }}">‹ Previous week</a>
+    {% if start < this_week %}<a class="btn secondary small" href="{{ url_for('timesheet.week', week=nxt) }}">Next week ›</a>{% endif %}
+    <a class="btn small" href="{{ url_for('timesheet.month', month=start.strftime('%Y-%m')) }}">Edit on calendar</a>
+    {% else %}
+    <a class="btn secondary small" href="{{ url_for('timesheet.view', employee_id=emp.id, week=prev) }}">‹ Previous week</a>
+    <a class="btn secondary small" href="{{ url_for('timesheet.view', employee_id=emp.id, week=nxt) }}">Next week ›</a>
+    <a class="btn secondary small" href="{{ url_for('timesheet.team', week=start.isoformat()) }}">Back to team</a>
+    {% endif %}</div></div>
+<section class="panel">
+  <div class="panel-head"><h2>{{ (v.total + v.leave_hours)|days }} hours booked{% if v.leave_hours %} ({{ v.total|days }} on projects, {{ v.leave_hours|days }} paid leave){% endif %}</h2></div>
+  <div class="table-wrap"><table class="ts">
+    <thead><tr><th>Day</th><th>Project</th><th class="num">Hours</th><th>Task done</th></tr></thead>
+    {% for d in v.days %}
+    <tbody class="ts-day{% if d.ideal == 0 %} off{% endif %}">
+      <tr class="ts-head"><td colspan="4"><strong>{{ d.date.strftime('%A') }}</strong> {{ d.date|date }}
+        {% if d.note %}<span class="muted small">{{ d.note }}</span>{% endif %}
+        <span class="ts-total{% if d.short %} due-soon{% endif %}">{{ d.booked|days }}{% if d.ideal %} of {{ d.ideal|days }}{% endif %} h</span></td></tr>
+      {% if d.leave %}<tr><td></td><td>{{ d.leave.name }} ({{ 'paid' if d.leave.paid else 'unpaid' }}{% if d.leave.half %}, {{ 'first' if d.leave.half == 'FIRST' else 'second' }} half{% endif %})</td>
+        <td class="num">{{ d.leave_hours|days }}</td><td class="small muted">Approved leave</td></tr>{% endif %}
+      {% for e in d.entries %}<tr><td></td><td>{{ e.project }}</td><td class="num">{{ e.hours|days }}</td><td class="small">{{ e.description }}</td></tr>{% endfor %}
+    </tbody>
+    {% endfor %}
+  </table></div>
+</section>
+{% endblock %}

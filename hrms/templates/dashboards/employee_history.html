@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period, balance_table, contract_state, csrf %}
+{% block title %}{{ emp.full_name }} – leave history{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ emp.full_name }}</h1>
+  <p>{{ emp.emp_code }}{% if emp.designation %}, {{ emp.designation }}{% endif %}{% if emp.department %}, {{ emp.department }}{% endif %}{% if emp.reporting_officer %}. Reports to {{ emp.reporting_officer }}.{% endif %}
+    {% if contract %}<br>Joined {{ contract.joining|date }}; current contract from {{ contract.term_start|date }}{% if contract.renewal_due %}; renewal due {{ contract.renewal_due|date }}{% endif %}.{% endif %}</p></div></div>
+<div class="grid grid-3">
+  <section class="panel">
+    <h2>Leave history</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Leave type</th><th>Period</th><th class="num">Days</th><th>Status</th><th>Applied</th><th>Remarks</th></tr></thead>
+      <tbody>
+      {% for r in requests %}
+        <tr><td><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.id }}</a></td><td>{{ r.leave_type_name }}</td><td>{{ period(r) }}</td>
+          <td class="num">{{ r.days|days }}</td><td>{{ status(r.status) }}</td><td class="small nowrap">{{ r.submitted_at|dt }}</td>
+          <td class="small">{{ r.decision_remarks or r.cancel_reason or '' }}</td></tr>
+      {% else %}<tr><td colspan="7" class="empty">No leave applications.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <h2 class="mt">Comp-off claims</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date worked</th><th class="num">Days</th><th>Work done</th><th>Assigned by</th><th>Status</th><th>Remarks</th></tr></thead>
+      <tbody>
+      {% for c in claims %}
+        <tr><td class="nowrap">{{ c.worked_date|date }}</td><td class="num">{{ c.days|days }}</td><td class="small">{{ c.work_details|truncate(90) }}</td>
+          <td>{{ c.approver_name }}</td><td>{{ status(c.status) }}</td><td class="small">{{ c.decision_remarks or '' }}</td></tr>
+      {% else %}<tr><td colspan="6" class="empty">No comp-off claims.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  <div>
+  {% with own = false %}{% include "dashboards/_people.html" %}{% endwith %}
+  <section class="panel"><h2>Balance</h2>{{ balance_table(balances, cycle) }}</section>
+  <section class="panel" id="contract">
+    <h2>Contract</h2>
+    <p><strong>Contract ends:</strong> {{ emp.contract_end_date|date if emp.contract_end_date else 'not recorded' }}
+      {% if emp.contract_end_date %}<span class="muted small">(no timesheet or leave after this date)</span>{% endif %}</p>
+    {% if can('contracts.manage') and emp.id != current_user.employee_id %}
+    <form method="post" action="{{ url_for('dashboards.contract_end_set', employee_id=emp.id) }}" class="inline-form mt">{{ csrf() }}
+      <div class="field"><label for="ced">Contract end date</label><input type="date" id="ced" name="contract_end_date" value="{{ emp.contract_end_date or '' }}"></div>
+      <button class="btn secondary" type="submit">Save end date</button>
+    </form>
+    <p class="small muted">Extend it when the contract is renewed. Leave it blank if not known; nothing is blocked then.</p>
+    {% endif %}
+    {% if cstatus %}
+      <p>{{ contract_state(cstatus) }}</p>
+      <table><thead><tr><th>Date</th><th>Event</th><th></th></tr></thead><tbody>
+        <tr><td class="nowrap">{{ emp.joining_date|date }}</td><td>Joined</td><td></td></tr>
+        {% for r in renewals %}<tr><td class="nowrap">{{ r.renewal_date|date }}</td><td>Renewal{% if r.note %} <span class="muted small">({{ r.note }})</span>{% endif %}</td>
+          <td class="right">{% if can('contracts.manage') and emp.id != current_user.employee_id %}<form method="post" action="{{ url_for('dashboards.renewal_delete', employee_id=emp.id, renewal_id=r.id) }}" class="inline">{{ csrf() }}
+            <button class="btn link small" type="submit" data-confirm="Remove the renewal dated {{ r.renewal_date|date }}?">Remove</button></form>{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+      {% if can('contracts.manage') and emp.id == current_user.employee_id %}
+      <p class="small muted mt">Your own renewal date is recorded by the administrator.</p>
+      {% elif can('contracts.manage') %}
+      <form method="post" action="{{ url_for('dashboards.renewal_add', employee_id=emp.id) }}" class="mt">{{ csrf() }}
+        <div class="form-grid">
+          <div class="field"><label for="rnd">Renewal date</label><input type="date" id="rnd" name="renewal_date" required></div>
+          <div class="field"><label for="rnn">Note (optional)</label><input type="text" id="rnn" name="note" maxlength="200" placeholder="e.g. renewed as Research Officer"></div>
+        </div>
+        <button class="btn secondary" type="submit">Record renewal</button>
+        <p class="small muted">The renewal date starts the new contract term and leave cycle. Reminders stop once it is recorded.</p>
+      </form>
+      {% endif %}
+    {% else %}
+      <p class="muted">No date of joining recorded: no contract term is tracked (leave follows the calendar year).</p>
+    {% endif %}
+  </section>
+  </div>
+</div>
+{% endblock %}

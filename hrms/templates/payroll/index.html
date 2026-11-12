@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Salary slips {{ label }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Salary slips: {{ label }}</h1>
+  <p>Set up each person's pay structure once, prepare the month's slips, check them, then issue. Employees see only their own issued slips.</p></div>
+  <div class="cal-nav">
+    <a class="btn secondary small" href="{{ url_for('payroll.index', month=prev) }}">‹ Previous month</a>
+    <form method="get" class="inline-form"><input type="month" name="month" value="{{ month }}" aria-label="Month">
+      <button class="btn secondary small" type="submit">Go</button></form>
+    <a class="btn secondary small" href="{{ url_for('payroll.index', month=nxt) }}">Next month ›</a>
+  </div></div>
+
+<section class="kpis">
+  <div class="kpi"><div class="label">Pay structures set up</div><div class="value">{{ counts.structure }}</div><div class="sub">of {{ rows|length }} active staff</div></div>
+  <div class="kpi"><div class="label">Drafts to check</div><div class="value">{{ counts.draft }}</div><div class="sub">not yet visible to staff</div></div>
+  <div class="kpi"><div class="label">Issued</div><div class="value">{{ counts.issued }}</div><div class="sub">for {{ label }}</div></div>
+  <div class="kpi"><div class="label">Net pay issued</div><div class="value">₹{{ counts.net|money }}</div><div class="sub">total for {{ label }}</div></div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Staff</h2>
+    <div class="actions">
+      <form method="post" action="{{ url_for('payroll.generate') }}">{{ csrf() }}<input type="hidden" name="month" value="{{ month }}">
+        <button class="btn" type="submit" data-confirm="Prepare draft slips for {{ label }} for everyone with a pay structure?">Prepare drafts for all</button></form>
+      <form method="post" action="{{ url_for('payroll.issue') }}">{{ csrf() }}<input type="hidden" name="month" value="{{ month }}">
+        <button class="btn good" type="submit" {% if not counts.draft %}disabled{% endif %}
+          data-confirm="Issue all {{ counts.draft }} draft slip(s) for {{ label }}? Staff will be notified and the slips can no longer be edited.">Issue all drafts</button></form>
+    </div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Designation / Dept.</th><th>Pay structure</th><th>Slip for {{ label }}</th><th class="num">Net pay (₹)</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><strong>{{ r.full_name }}</strong><div class="muted small">{{ r.emp_code }}</div></td>
+        <td>{{ r.designation or '—' }}<div class="muted small">{{ r.department or '' }}</div></td>
+        <td>{% if r.has_structure %}<a href="{{ url_for('payroll.structure', employee_id=r.id, month=month) }}">Edit</a>
+            {% else %}<a href="{{ url_for('payroll.structure', employee_id=r.id, month=month) }}">Set up</a>{% endif %}</td>
+        <td>{% if r.slip_status == 'ISSUED' %}<span class="badge APPROVED">Issued</span>
+            {% elif r.slip_status == 'DRAFT' %}<span class="badge PENDING">Draft</span>
+            {% else %}<span class="muted">Not prepared</span>{% endif %}</td>
+        <td class="num">{{ r.net|money if r.slip_id else '' }}</td>
+        <td class="nowrap">{% if r.slip_id %}<a href="{{ url_for('payroll.slip_edit', slip_id=r.slip_id) }}">{{ 'Check and issue' if r.slip_status == 'DRAFT' else 'Open' }}</a>
+            {% elif r.has_structure and r.id != current_user.employee_id %}
+            <form method="post" action="{{ url_for('payroll.generate') }}" class="inline">{{ csrf() }}<input type="hidden" name="month" value="{{ month }}">
+              <input type="hidden" name="employee_id" value="{{ r.id }}"><button class="btn link" type="submit">Prepare</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="empty">No active staff.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <p class="small muted mt">You cannot prepare or issue your own slip; another payroll officer must do it. Salary amounts are not shown to system administrators.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import contract_state %}
+{% block title %}Contract renewals{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Contract renewals</h1>
+  <p>Staff with a date of joining. Record each person's next renewal date on their page so that the employee and HR are reminded before it.</p></div></div>
+<section class="kpis">
+  <div class="kpi {{ 'alert' if missing }}"><div class="label">Renewal date not recorded</div><div class="value">{{ missing }}</div><div class="sub">HR to record the next date</div></div>
+  <div class="kpi"><div class="label">Renewals in the next 30 days</div><div class="value">{{ soon }}</div><div class="sub">employee and HR are reminded</div></div>
+  <div class="kpi"><div class="label">Staff with contracts</div><div class="value">{{ rows|length }}</div><div class="sub">with a date of joining</div></div>
+</section>
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Designation / Dept.</th><th>Joined</th><th>Status</th><th>Contract ends</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><strong>{{ r.emp.full_name }}</strong><div class="muted small">{{ r.emp.emp_code }}</div></td>
+        <td>{{ r.emp.designation or '—' }}<div class="muted small">{{ r.emp.department or '' }}</div></td>
+        <td class="nowrap">{{ r.emp.joining_date|date }}</td>
+        <td>{{ contract_state(r.s) }}</td>
+        <td class="nowrap">{{ r.emp.contract_end_date|date if r.emp.contract_end_date else '—' }}</td>
+        <td class="nowrap"><a href="{{ url_for('dashboards.employee_history', employee_id=r.emp.id) }}#contract">{{ 'Record date' if r.s.state == 'missing' or not r.emp.contract_end_date else 'Open' }}</a></td></tr>
+    {% else %}<tr><td colspan="6"class="empty">No staff with a date of joining.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

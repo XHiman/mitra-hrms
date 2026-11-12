@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Organisation{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Organisation configuration</h1><p>Departments / teams, designations and the reporting hierarchy. Reporting officers are mapped on each user's record.</p></div></div>
+<div class="grid grid-2">
+  <section class="panel">
+    <h2>Departments / teams</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Code</th><th>Parent</th><th class="num">Staff</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for d in departments %}
+        <tr><td colspan="6">
+          <details><summary><strong>{{ d.name }}</strong>{% if d.code %} ({{ d.code }}){% endif %}, {{ 'under ' ~ d.parent_name if d.parent_name else 'top level' }}, {{ d.headcount }} staff, {{ 'active' if d.is_active else 'inactive' }}</summary>
+            <form method="post" action="{{ url_for('admin.department_save') }}" class="inline-form mt">{{ csrf() }}
+              <input type="hidden" name="id" value="{{ d.id }}">
+              <div class="field"><label>Name</label><input type="text" name="name" value="{{ d.name }}" required maxlength="120"></div>
+              <div class="field"><label>Code</label><input type="text" name="code" value="{{ d.code or '' }}" maxlength="20"></div>
+              <div class="field"><label>Parent</label><select name="parent_id"><option value="">— Top level —</option>
+                {% for p in departments if p.id != d.id %}<option value="{{ p.id }}" {{ 'selected' if p.id == d.parent_id }}>{{ p.name }}</option>{% endfor %}</select></div>
+              <div class="field"><label>Status</label><select name="is_active"><option value="1" {{ 'selected' if d.is_active }}>Active</option><option value="0" {{ 'selected' if not d.is_active }}>Inactive</option></select></div>
+              <button class="btn secondary small" type="submit">Save</button>
+            </form></details>
+        </td></tr>
+      {% else %}<tr><td colspan="6" class="empty">No departments.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <h3 class="mt">Add department / team</h3>
+    <form method="post" action="{{ url_for('admin.department_save') }}" class="inline-form">{{ csrf() }}
+      <div class="field"><label for="dn">Name</label><input type="text" id="dn" name="name" required maxlength="120"></div>
+      <div class="field"><label for="dc">Code</label><input type="text" id="dc" name="code" maxlength="20"></div>
+      <div class="field"><label for="dpp">Parent</label><select id="dpp" name="parent_id"><option value="">— Top level —</option>
+        {% for p in departments %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+      <button class="btn" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Designations</h2>
+    <div class="table-wrap"><table>
+      <tbody>
+      {% for d in designations %}
+        <tr><td>
+          <details><summary><strong>{{ d.name }}</strong>{% if d.level is not none %}, level {{ d.level }}{% endif %}, {{ d.headcount }} staff, {{ 'active' if d.is_active else 'inactive' }}</summary>
+            <form method="post" action="{{ url_for('admin.designation_save') }}" class="inline-form mt">{{ csrf() }}
+              <input type="hidden" name="id" value="{{ d.id }}">
+              <div class="field"><label>Name</label><input type="text" name="name" value="{{ d.name }}" required maxlength="120"></div>
+              <div class="field"><label>Level</label><input type="number" name="level" min="0" max="99" value="{{ d.level if d.level is not none else '' }}"></div>
+              <div class="field"><label>Status</label><select name="is_active"><option value="1" {{ 'selected' if d.is_active }}>Active</option><option value="0" {{ 'selected' if not d.is_active }}>Inactive</option></select></div>
+              <button class="btn secondary small" type="submit">Save</button>
+            </form></details>
+        </td></tr>
+      {% else %}<tr><td class="empty">No designations.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <h3 class="mt">Add designation</h3>
+    <form method="post" action="{{ url_for('admin.designation_save') }}" class="inline-form">{{ csrf() }}
+      <div class="field"><label for="gn">Name</label><input type="text" id="gn" name="name" required maxlength="120"></div>
+      <div class="field"><label for="gl">Level</label><input type="number" id="gl" name="level" min="0" max="99"><div class="hint">1 = most senior</div></div>
+      <button class="btn" type="submit">Add</button>
+    </form>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Reporting hierarchy</h2>{% if can('users.manage') %}<a href="{{ url_for('admin.users') }}">Change mappings in User management</a>{% endif %}</div>
+  {% for depth, p in hierarchy %}
+    <div class="tree-row">{% for _ in range(depth) %}<span class="muted">│&nbsp;&nbsp;&nbsp;</span>{% endfor %}{% if depth %}<span class="muted">└ </span>{% endif %}<strong>{{ p.full_name }}</strong> <span class="muted small">{{ p.designation or '' }}{% if p.department %}, {{ p.department }}{% endif %}</span></div>
+  {% else %}<p class="empty">No active employees.</p>{% endfor %}
+</section>
+{% endblock %}

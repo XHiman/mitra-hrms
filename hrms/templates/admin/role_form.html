@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}{{ role.name if role else 'Create role' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ role.name if role else 'Create role' }}</h1><p>{{ role.code if role else 'Define a new role and its permissions.' }}</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.roles') }}">Back</a></div>
+<section class="panel medium">
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      {% if not role %}<div class="field"><label for="cd">Role code</label><input type="text" id="cd" name="code" required maxlength="30" value="{{ form.get('code', '') }}"><div class="hint">e.g. DEPUTY_SECRETARY</div></div>{% endif %}
+      <div class="field"><label for="nm">Name</label><input type="text" id="nm" name="name" required maxlength="80" value="{{ form.get('name', role.name if role else '') }}"></div>
+      <div class="field full"><label for="ds">Description</label><input type="text" id="ds" name="description" maxlength="200" value="{{ form.get('description', (role.description or '') if role else '') }}"></div>
+    </div>
+    {% set ns = namespace(module='') %}
+    {% for code, module, desc in permissions %}
+      {% if module != ns.module %}{% set ns.module = module %}<h3 class="mt">{{ module }}</h3>{% endif %}
+      <label class="check"><input type="checkbox" name="perm" value="{{ code }}" {{ 'checked' if code in current }}> <span>{{ desc }} <span class="muted small">({{ code }})</span></span></label>
+    {% endfor %}
+    <button class="btn mt" type="submit">Save role</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Admin dashboard{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Admin / Developer dashboard</h1>
+  <p>Technical administration. This role does not carry leave approval rights.</p></div></div>
+
+<section class="kpis">
+  <div class="kpi"><div class="label">Total users</div><div class="value">{{ stats.total_users }}</div><div class="sub">all accounts</div></div>
+  <div class="kpi"><div class="label">Active users</div><div class="value">{{ stats.active_users }}</div><div class="sub">{{ stats.total_users - stats.active_users }} inactive</div></div>
+  <div class="kpi"><div class="label">Pending requests</div><div class="value">{{ stats.pending }}</div><div class="sub">system-wide, awaiting approvers</div></div>
+  <div class="kpi {{ 'alert' if alerts }}"><div class="label">System alerts</div><div class="value">{{ alerts|length }}</div><div class="sub">{{ 'need attention' if alerts else 'all clear' }}</div></div>
+</section>
+
+<div class="grid grid-3">
+  <div>
+    <section class="panel">
+      <div class="panel-head"><h2>System alerts</h2></div>
+      <ul class="list">
+        {% for level, msg, target in alerts %}
+          <li><span class="badge {{ level }}">{{ 'Critical' if level == 'critical' else 'Warning' }}</span> {{ msg }}
+            {% if can('dashboard.admin') %}<a class="small" href="{{ url_for(target) }}">Resolve ›</a>{% endif %}</li>
+        {% else %}<li><span class="badge good">OK</span> No alerts.</li>{% endfor %}
+      </ul>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Recent audit activity</h2><a href="{{ url_for('audit.index') }}">Full audit log</a></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>When</th><th>User</th><th>Action</th><th>Record</th></tr></thead>
+        <tbody>
+        {% for r in recent %}<tr><td class="small nowrap">{{ r.ts|dt }}</td><td>{{ r.username or 'system' }}</td><td class="small"><strong>{{ r.action }}</strong></td><td class="small">{{ r.entity }}{% if r.entity_id %} #{{ r.entity_id }}{% endif %}</td></tr>
+        {% else %}<tr><td colspan="4" class="empty">No activity yet.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+  <div>
+    <section class="panel">
+      <h2>Administration</h2>
+      <ul class="list">
+        {% if can('users.manage') %}<li><a href="{{ url_for('admin.users') }}">User management</a><div class="small muted">Create, edit, activate, reset access, map hierarchy</div></li>{% endif %}
+        {% if can('roles.manage') %}<li><a href="{{ url_for('admin.roles') }}">Role management</a><div class="small muted">Roles and permission matrix</div></li>{% endif %}
+        {% if can('leave_config.manage') %}<li><a href="{{ url_for('admin.leave_types') }}">Leave configuration</a><div class="small muted">Leave types, entitlements, rules, holidays</div></li>{% endif %}
+        {% if can('org.manage') %}<li><a href="{{ url_for('admin.org') }}">Organisation configuration</a><div class="small muted">Departments, designations, hierarchy</div></li>{% endif %}
+        {% if can('workflow.manage') %}<li><a href="{{ url_for('admin.workflows') }}">Approval workflow configuration</a><div class="small muted">Approval hierarchy and stages</div></li>{% endif %}
+        <li><a href="{{ url_for('audit.index') }}">Audit logs</a><div class="small muted">Search and verify integrity</div></li>
+        {% if can('settings.manage') %}<li><a href="{{ url_for('admin.backups') }}">Backups</a>, <a href="{{ url_for('admin.settings') }}">Settings</a></li>{% endif %}
+      </ul>
+    </section>
+    <section class="panel">
+      <h2>Leave requests in {{ year }}</h2>
+      <table><tbody>
+        {% for s in ['PENDING','APPROVED','REJECTED','CANCELLED'] %}<tr><td><span class="badge {{ s }}">{{ s|title }}</span></td><td class="num">{{ by_status.get(s, 0) }}</td></tr>{% endfor %}
+      </tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Active users by role</h2>
+      <table><tbody>{% for r in by_role %}<tr><td>{{ r.name }}</td><td class="num">{{ r.n }}</td></tr>{% endfor %}</tbody></table>
+    </section>
+  </div>
+</div>
+{% endblock %}

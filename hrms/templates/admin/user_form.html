@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf, fval %}
+{% block title %}{{ 'Edit user' if user else 'Create user' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ user.full_name if user else 'Create user' }}</h1>
+  <p>{% if user %}{{ user.username }}, {{ user.role_name }} {% if user.is_active %}<span class="badge good">Active</span>{% else %}<span class="badge neutral">Inactive</span>{% endif %}{% else %}A one-time password will be generated; the user must change it at first login.{% endif %}</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.users') }}">Back to users</a></div>
+
+<div class="grid grid-3">
+<section class="panel">
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" autocomplete="off">
+    {{ csrf() }}
+    <h2>Employee details</h2>
+    <div class="form-grid">
+      <div class="field"><label for="ec">Employee ID</label><input type="text" id="ec" name="emp_code" required maxlength="20" value="{{ fval(form.get('emp_code')) }}"></div>
+      <div class="field"><label for="fn">Full name</label><input type="text" id="fn" name="full_name" required maxlength="120" value="{{ fval(form.get('full_name')) }}"></div>
+      <div class="field"><label for="em">Email</label><input type="email" id="em" name="email" maxlength="120" value="{{ fval(form.get('email')) }}"></div>
+      <div class="field"><label for="ph">Phone</label><input type="text" id="ph" name="phone" maxlength="20" value="{{ fval(form.get('phone')) }}"></div>
+      <div class="field"><label for="dg">Designation</label><select id="dg" name="designation_id"><option value="">—</option>
+        {% for d in designations %}<option value="{{ d.id }}" {{ 'selected' if form.get('designation_id')|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="dp">Department / Team</label><select id="dp" name="department_id"><option value="">—</option>
+        {% for d in departments %}<option value="{{ d.id }}" {{ 'selected' if form.get('department_id')|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="ro">Reporting / supervisory officer</label><select id="ro" name="reporting_officer_id"><option value="">— None —</option>
+        {% for o in officers %}{% if not user or o.id != user.employee_id %}<option value="{{ o.id }}" {{ 'selected' if form.get('reporting_officer_id')|string == o.id|string }}>{{ o.full_name }}{% if o.designation %} ({{ o.designation }}){% endif %}</option>{% endif %}{% endfor %}</select></div>
+      <div class="field"><label for="jd">Joining date</label><input type="date" id="jd" name="joining_date" value="{{ fval(form.get('joining_date')) }}"></div>
+      <div class="field"><label for="db">Date of birth</label><input type="date" id="db" name="date_of_birth" value="{{ fval(form.get('date_of_birth')) }}">
+        <div class="hint">Colleagues see only the day and month, and only if the employee allows it.</div></div>
+      <div class="field"><label for="et">Employment type</label><select id="et" name="employment_type"><option value="">—</option>
+        {% for t in employment_types %}<option {{ 'selected' if form.get('employment_type') == t }}>{{ t }}</option>{% endfor %}</select></div>
+    </div>
+    <h2 class="mt">Account</h2>
+    <div class="form-grid">
+      <div class="field"><label for="un">Username</label><input type="text" id="un" name="username" required maxlength="40" value="{{ fval(form.get('username')) }}"></div>
+      <div class="field"><label for="rl">Role</label><select id="rl" name="role_id" required><option value="">— Select —</option>
+        {% for r in roles %}<option value="{{ r.id }}" {{ 'selected' if form.get('role_id')|string == r.id|string }}>{{ r.name }}</option>{% endfor %}</select>
+        <div class="hint">Role determines permissions. Supervisory roles can approve leave; the System Administrator role cannot.</div></div>
+    </div>
+    <button class="btn" type="submit">{{ 'Save changes' if user else 'Create user' }}</button>
+  </form>
+</section>
+
+{% if user %}
+<div>
+  <section class="panel">
+    <h2>Access</h2>
+    <dl class="facts">
+      <dt>Last login</dt><dd>{{ user.last_login_at|dt or 'Never' }}</dd>
+      <dt>Password changed</dt><dd>{{ user.password_changed_at|dt or '—' }}</dd>
+      <dt>Locked until</dt><dd>{{ user.locked_until|dt or 'Not locked' }}</dd>
+    </dl>
+    <div class="actions mt">
+      <form method="post" action="{{ url_for('admin.user_reset', user_id=user.id) }}">{{ csrf() }}
+        <button class="btn secondary" type="submit" data-confirm="Issue a new one-time password and sign this user out everywhere?">Reset access</button></form>
+      <form method="post" action="{{ url_for('admin.user_toggle', user_id=user.id) }}">{{ csrf() }}
+        {% if user.is_active %}<button class="btn danger" type="submit" data-confirm="Deactivate this user? They will be signed out immediately.">Deactivate</button>
+        {% else %}<button class="btn good" type="submit">Activate</button>{% endif %}</form>
+    </div>
+  </section>
+  <section class="panel" id="contract">
+    <h2>Contract dates</h2>
+    {% if not user.joining_date %}<p class="small muted">No date of joining: leave follows the calendar year. Enter the joining date above to use contract-based leave cycles.</p>{% endif %}
+    <table><thead><tr><th>Date</th><th>Event</th><th></th></tr></thead><tbody>
+      {% if user.joining_date %}<tr><td class="nowrap">{{ user.joining_date|date }}</td><td>Joined</td><td></td></tr>{% endif %}
+      {% for r in contract.renewals if contract %}
+        <tr><td class="nowrap">{{ r.renewal_date|date }}</td><td>Renewal{% if r.note %} <span class="muted small">({{ r.note }})</span>{% endif %}</td>
+          <td class="right"></td></tr>
+      {% endfor %}
+    </tbody></table>
+    {% if renewals %}
+    <div class="mt small">Remove a date:
+      {% for r in renewals %}<form method="post" action="{{ url_for('admin.user_renewal_delete', user_id=user.id, renewal_id=r.id) }}" class="inline">{{ csrf() }}<button class="btn link" type="submit" data-confirm="Remove the renewal dated {{ r.renewal_date|date }}?">{{ r.renewal_date|date }}</button></form>{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.user_renewal_add', user_id=user.id) }}" class="inline-form mt">{{ csrf() }}
+      <div class="field"><label for="rnd">Renewal date</label><input type="date" id="rnd" name="renewal_date" required></div>
+      <div class="field"><label for="rnn">Note (optional)</label><input type="text" id="rnn" name="note" maxlength="200"></div>
+      <button class="btn secondary" type="submit">Add renewal</button>
+    </form>
+    <p class="small muted">Each renewal starts a new contract term and a new leave cycle.</p>
+  </section>
+  <section class="panel" id="balances">
+    <h2>Leave entitlement, current cycle</h2>
+    <p class="small muted">{{ cycle.label }}</p>
+    <table><thead><tr><th>Type</th><th class="num">Entitled</th><th class="num">Used</th><th class="num">Pending</th></tr></thead><tbody>
+      {% for b in balances if b.tracked %}<tr><td>{{ b.leave_type.name }}</td><td class="num">{{ b.entitlement|days }}{% if b.is_override %}*{% endif %}</td><td class="num">{{ b.used|days }}</td><td class="num">{{ b.pending|days }}</td></tr>{% endfor %}
+    </tbody></table>
+    <p class="small muted">* individually adjusted. Default entitlement comes from the leave type.</p>
+    <form method="post" action="{{ url_for('admin.user_balance', user_id=user.id) }}">{{ csrf() }}
+      <div class="field"><label for="blt">Leave type</label><select id="blt" name="leave_type_id" required>
+        {% for b in balances if b.tracked %}<option value="{{ b.leave_type.id }}">{{ b.leave_type.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="bent">Entitlement for this employee</label><input type="number" step="0.5" min="0" id="bent" name="entitlement">
+        <div class="hint">Leave blank to revert to the leave type's default.</div></div>
+      <div class="field"><label for="brm">Remarks / authority</label><input type="text" id="brm" name="remarks" required maxlength="500" placeholder="e.g. Pro-rata as per order no. …"></div>
+      <button class="btn secondary" type="submit">Update entitlement</button>
+    </form>
+  </section>
+</div>
+{% endif %}
+</div>
+{% endblock %}

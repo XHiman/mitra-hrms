@@ -1,0 +1,77 @@
+{% macro status(s) -%}
+<span class="badge {{ s }}">{{ s|title }}</span>
+{%- endmacro %}
+
+{% macro fval(v) -%}
+{%- if v is none -%}{%- elif v is number -%}{{ v|days }}{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+
+{% macro csrf() -%}
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro period(r) -%}
+<span class="nowrap">{{ r.from_date|date }}</span>{% if r.to_date != r.from_date %} – <span class="nowrap">{{ r.to_date|date }}</span>{% endif %}
+{%- if r.half_day %} <span class="muted small nowrap">({{ 'first' if r.half_day == 'FIRST' else 'second' }} half)</span>{% endif %}
+{%- endmacro %}
+
+{% macro calendar(weeks, month, prev, nxt, endpoint, show_names=true) -%}
+<div class="panel-head">
+  <h2>Leave calendar: {{ month.strftime('%B %Y') }}</h2>
+  <div class="cal-nav">
+    <a class="btn secondary small" href="{{ url_for(endpoint, y=prev[0], m=prev[1]) }}">‹ Prev</a>
+    <a class="btn secondary small" href="{{ url_for(endpoint) }}">Today</a>
+    <a class="btn secondary small" href="{{ url_for(endpoint, y=nxt[0], m=nxt[1]) }}">Next ›</a>
+  </div>
+</div>
+<div class="calendar" role="grid" aria-label="Leave calendar">
+  {% for d in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<div class="dow">{{ d }}</div>{% endfor %}
+  {% for week in weeks %}{% for day in week %}
+  <div class="day{% if not day.in_month %} out{% endif %}{% if day.is_off %} off{% endif %}{% if day.is_today %} today{% endif %}{% if day.holiday %} holiday{% endif %}">
+    <span class="num">{{ day.date.day }}</span>
+    {% if day.holiday %}<div class="hol" title="{{ day.holiday.description or day.holiday.name }}">{{ day.holiday.name }}</div>{% endif %}
+    {% for b in day.birthdays %}<div class="bday" title="Birthday of {{ b.full_name }}{% if b.designation %}, {{ b.designation }}{% endif %}">Birthday: {{ b.full_name }}</div>{% endfor %}
+    {% for e in day.entries[:3] %}
+      <a class="entry {{ e.status }}" href="{{ url_for('leave.detail', request_id=e.id) }}"
+         title="{{ e.employee_name }} – {{ e.leave_type_name }} ({{ e.status|title }})">{% if show_names %}{{ e.employee_name }}{% else %}{{ e.leave_type_name }}{% endif %}{% if e.status == 'PENDING' %} (pending){% endif %}</a>
+    {% endfor %}
+    {% if day.entries|length > 3 %}<span class="muted small">+{{ day.entries|length - 3 }} more</span>{% endif %}
+  </div>
+  {% endfor %}{% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro contract_state(s) -%}
+{%- if s.state == 'scheduled' -%}
+  Renewal due <strong{% if s.days_left <= 30 %} class="due-soon"{% endif %}>{{ s.renewal_due|date }}</strong>
+  <span class="muted small">({% if s.days_left == 1 %}tomorrow{% else %}in {{ s.days_left }} days{% endif %})</span>
+{%- else -%}
+  Current term from {{ s.term_start|date }}; <span class="due-soon">next renewal date not yet recorded by HR</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro balance_table(balances, cycle) -%}
+<div class="table-wrap"><table>
+  <thead><tr><th>Leave type</th><th class="num">Entitlement</th><th class="num">Used</th><th class="num">Pending</th><th class="num">Available</th></tr></thead>
+  <tbody>
+  {% for b in balances %}
+    <tr>
+      <td>{{ b.leave_type.name }}</td>
+      {% if not b.tracked %}
+        <td class="num muted" colspan="4">Not tracked (used {{ b.used|days }})</td>
+      {% elif b.entitlement is none %}
+        <td class="num muted" colspan="4">Entitlement not yet configured</td>
+      {% else %}
+        <td class="num">{{ b.entitlement|days }}{% if b.annual is not none and b.annual != b.entitlement %} <span class="muted small">of {{ b.annual|days }}</span>{% endif %}{% if b.is_override %} <span class="muted small" title="Individually adjusted">*</span>{% endif %}</td>
+        <td class="num">{{ b.used|days }}</td>
+        <td class="num">{{ b.pending|days }}</td>
+        <td class="num"><strong>{{ b.available|days }}</strong></td>
+      {% endif %}
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="empty">No leave types are configured yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="muted small">Leave cycle {{ cycle.label }}.{% if balances|selectattr('annual')|selectattr('leave_type.accrual_per_month')|list %} For leave credited monthly, "15 of 18" means 15 days credited so far out of 18 for the cycle.{% endif %}</p>
+{%- endmacro %}

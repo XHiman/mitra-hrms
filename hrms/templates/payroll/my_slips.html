@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}My salary slips{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>My salary slips</h1><p>Slips issued to you by HR / Accounts. Open one to print it or save it as a PDF.</p></div></div>
+<section class="panel narrow">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Month</th><th class="num">Net pay (₹)</th><th>Issued on</th><th></th></tr></thead>
+    <tbody>
+    {% for s in slips %}
+      <tr><td>{{ label(s.month) }}</td><td class="num">{{ s.net|money }}</td><td class="small">{{ s.issued_at|dt }}</td>
+        <td><a href="{{ url_for('payroll.my_slip', slip_id=s.id) }}">View</a></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No salary slips have been issued to you yet. You will get a notification when HR issues one.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

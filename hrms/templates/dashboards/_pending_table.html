@@ -1,0 +1,38 @@
+{% from "macros.html" import status, period, csrf %}
+<div class="table-wrap"><table>
+  <thead><tr>
+    <th>Employee</th><th>Designation / Dept.</th><th>Leave type</th><th>Duration</th><th class="num">Days</th>
+    <th>Reason</th><th>Applied on</th><th>Stage</th><th>Document</th><th>Action</th>
+  </tr></thead>
+  <tbody>
+  {% for r in pending_rows %}
+    <tr>
+      <td><strong>{{ r.employee_name }}</strong><div class="muted small">{{ r.emp_code }}</div>
+        <a class="small" href="{{ url_for('dashboards.employee_history', employee_id=r.employee_id) }}">Leave history</a></td>
+      <td>{{ r.designation or '—' }}<div class="muted small">{{ r.department or '—' }}</div></td>
+      <td>{{ r.leave_type_name }}</td>
+      <td>{{ period(r) }}</td>
+      <td class="num">{{ r.days|days }}</td>
+      <td class="small">{{ r.reason|truncate(90) }}</td>
+      <td class="nowrap">{{ r.submitted_at|dt }}</td>
+      <td>{{ r.current_stage_name }}</td>
+      <td>{% if r.attachment_path %}<a href="{{ url_for('leave.document', request_id=r.id) }}">Download</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>
+        <form method="post" action="{{ url_for('approvals.decide', request_id=r.id) }}">
+          {{ csrf() }}
+          <input type="hidden" name="stage" value="{{ r.current_stage }}">
+          <input type="hidden" name="return_to" value="{{ return_to }}">
+          <input type="text" name="remarks" maxlength="1000" placeholder="Remarks (required to reject)" aria-label="Remarks">
+          <div class="actions mt">
+            <button class="btn good small" name="decision" value="approve" data-confirm="Approve this leave request?">Approve</button>
+            <button class="btn danger small" name="decision" value="reject" data-confirm="Reject this leave request?">Reject</button>
+            <a class="small" href="{{ url_for('leave.detail', request_id=r.id) }}">Details</a>
+          </div>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="10" class="empty">No leave requests are awaiting your action.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>

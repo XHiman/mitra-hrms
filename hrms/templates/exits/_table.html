@@ -1,0 +1,13 @@
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Employee</th><th>Reason</th><th>Submitted</th><th>Last working day</th><th>Status</th><th>Clearance</th></tr></thead>
+  <tbody>
+  {% for r in pending %}
+    <tr><td><a href="{{ url_for('exits.detail', rid=r.id) }}">{{ r.id }}</a></td>
+      <td><a href="{{ url_for('exits.detail', rid=r.id) }}"><strong>{{ r.employee_name }}</strong></a><div class="muted small">{{ r.emp_code }}, {{ r.designation or '—' }}</div></td>
+      <td>{{ r.reason_category }}</td><td class="nowrap">{{ r.submitted_at|dt }}</td>
+      <td class="nowrap">{% if r.accepted_lwd %}{{ r.accepted_lwd|date }}{% else %}{{ r.proposed_lwd|date }} <span class="muted small">(requested)</span>{% endif %}</td>
+      <td><span class="badge {{ r.status }}">{{ labels[r.status] }}</span></td>
+      <td>{% if r.items %}{{ r.items_done }} of {{ r.items }}{% else %}—{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="empty">Nothing here.</td></tr>{% endfor %}
+  </tbody>
+</table></div>

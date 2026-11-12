@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period %}
+{% block title %}Leave records{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Leave records</h1><p>Leave applications within your authorised scope (read only).</p></div></div>
+<section class="panel">
+  <form class="filters" method="get">
+    <div class="field"><label for="q">Employee</label><input type="text" id="q" name="q" value="{{ q }}" placeholder="Name or ID"></div>
+    <div class="field"><label for="st">Status</label><select id="st" name="status"><option value="">All</option>
+      {% for s in ['PENDING','APPROVED','REJECTED','CANCELLED'] %}<option value="{{ s }}" {{ 'selected' if status == s }}>{{ s|title }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="ty">Leave type</label><select id="ty" name="type"><option value="">All</option>
+      {% for t in types %}<option value="{{ t.id }}" {{ 'selected' if type_id == t.id|string }}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="dp">Department</label><select id="dp" name="dept"><option value="">All</option>
+      {% for d in depts %}<option value="{{ d.id }}" {{ 'selected' if dept_id == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></div>
+    <button class="btn secondary" type="submit">Filter</button>
+  </form>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Employee</th><th>Department</th><th>Leave type</th><th>Period</th><th class="num">Days</th><th>Applied</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.id }}</a></td>
+        <td><a href="{{ url_for('dashboards.employee_history', employee_id=r.employee_id) }}">{{ r.employee_name }}</a><div class="muted small">{{ r.designation or '' }}</div></td>
+        <td>{{ r.department or '—' }}</td><td>{{ r.leave_type_name }}</td><td>{{ period(r) }}</td><td class="num">{{ r.days|days }}</td>
+        <td class="small nowrap">{{ r.submitted_at|dt }}</td>
+        <td>{{ status(r.status) }}{% if r.status == 'PENDING' %}<div class="muted small">{{ r.current_stage_name }}</div>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="8" class="empty">No records match.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

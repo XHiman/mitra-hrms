@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Notifications</h1><p>In-system notifications about your leave and actions required from you.</p></div>
+  <form method="post" action="{{ url_for('notifications.read_all') }}">{{ csrf() }}<button class="btn secondary" type="submit">Mark all as read</button></form></div>
+<section class="panel">
+  <ul class="list">
+    {% for n in rows %}
+      <li class="{{ 'unread' if not n.is_read }}">
+        <form method="post" action="{{ url_for('notifications.open_one', notification_id=n.id) }}">{{ csrf() }}
+          <button class="btn link" type="submit"><strong>{{ n.title }}</strong></button>{% if not n.is_read %} <span class="badge warning">New</span>{% endif %}
+        </form>
+        <div class="small">{{ n.message }}</div><div class="muted small">{{ n.created_at|dt }}</div>
+      </li>
+    {% else %}<li class="empty">You have no notifications.</li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% from "payroll/_lines.html" import line_inputs %}
+{% block title %}Salary slip {{ s.full_name }} {{ label }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Salary slip: {{ s.full_name }}, {{ label }}</h1>
+  <p>{{ s.emp_code }}{% if s.designation %}, {{ s.designation }}{% endif %}.
+    Status: {% if s.status == 'DRAFT' %}<span class="badge PENDING">Draft</span> (not visible to the employee){% elif s.status == 'ISSUED' %}<span class="badge APPROVED">Issued</span> on {{ s.issued_at|dt }} by {{ s.issued_by_name }}{% else %}<span class="badge CANCELLED">Cancelled</span>{% endif %}</p></div>
+  <div class="actions">
+    {% if s.status != 'CANCELLED' %}<a class="btn secondary" href="{{ url_for('payroll.slip_print', slip_id=s.id) }}">{{ 'Preview slip' if s.status == 'DRAFT' else 'View / print slip' }}</a>{% endif %}
+    <a class="btn secondary" href="{{ url_for('payroll.index', month=s.month) }}">Back to salary slips</a></div></div>
+
+{% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+{% if own %}<div class="notice">This is your own slip. Another payroll officer must prepare, issue or cancel it.</div>{% endif %}
+
+<div class="grid grid-3">
+<section class="panel">
+  {% if s.status == 'DRAFT' %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field"><label for="lop">Loss-of-pay days</label><input type="number" id="lop" name="lop_days" min="0" max="{{ s.days_in_month }}" step="0.5" value="{{ form.get('lop_days', '0') }}">
+        <div class="hint">Unpaid days in {{ label }} ({{ s.days_in_month }} days). Use "Recalculate" to reduce earnings in proportion.</div></div>
+      <div class="field"><label for="rm">Remarks on the slip (optional)</label><input type="text" id="rm" name="remarks" maxlength="300" value="{{ form.get('remarks', '') }}"></div>
+    </div>
+    <div class="grid grid-2">
+      <div>{{ line_inputs(form, rows, 'earning', 'Earnings', '') }}</div>
+      <div>{{ line_inputs(form, rows, 'deduction', 'Deductions', '') }}</div>
+    </div>
+    <div class="actions mt">
+      <button class="btn" type="submit" name="action" value="save" {% if own %}disabled{% endif %}>Save amounts</button>
+      <button class="btn secondary" type="submit" name="action" value="recalculate" {% if own %}disabled{% endif %}
+        data-confirm="Replace the amounts with the pay structure, adjusted for the loss-of-pay days?">Recalculate from pay structure</button>
+    </div>
+  </form>
+  {% else %}
+  <table>
+    <thead><tr><th>Earnings</th><th class="num">₹</th></tr></thead>
+    <tbody>{% for l in lines if l.kind == 'EARNING' %}<tr><td>{{ l.name }}</td><td class="num">{{ l.amount|money }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <table class="mt">
+    <thead><tr><th>Deductions</th><th class="num">₹</th></tr></thead>
+    <tbody>{% for l in lines if l.kind == 'DEDUCTION' %}<tr><td>{{ l.name }}</td><td class="num">{{ l.amount|money }}</td></tr>{% else %}<tr><td colspan="2" class="muted">None</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+</section>
+<div>
+  <section class="panel">
+    <h2>Totals</h2>
+    <dl class="facts compact">
+      <dt>Gross earnings</dt><dd class="num">₹ {{ s.gross|money }}</dd>
+      <dt>Deductions</dt><dd class="num">₹ {{ s.total_deductions|money }}</dd>
+      <dt>Net pay</dt><dd class="num"><strong>₹ {{ s.net|money }}</strong></dd>
+      <dt>Paid days</dt><dd>{{ (s.days_in_month - s.lop_days)|days }} of {{ s.days_in_month }}</dd>
+    </dl>
+    {% if s.status == 'DRAFT' %}
+    <form method="post" action="{{ url_for('payroll.issue') }}" class="mt">{{ csrf() }}<input type="hidden" name="slip_id" value="{{ s.id }}">
+      <button class="btn good" type="submit" {% if own %}disabled{% endif %} data-confirm="Issue this slip to {{ s.full_name }}? It can no longer be edited after issue.">Issue slip</button></form>
+    <p class="small muted">Save any changes before issuing.</p>
+    {% endif %}
+  </section>
+  {% if s.status != 'CANCELLED' %}
+  <section class="panel">
+    <h2>{{ 'Discard draft' if s.status == 'DRAFT' else 'Withdraw slip' }}</h2>
+    <form method="post" action="{{ url_for('payroll.slip_cancel', slip_id=s.id) }}">{{ csrf() }}
+      <div class="field"><label for="cr">Reason</label><input type="text" id="cr" name="reason" required maxlength="300"
+        placeholder="{{ 'e.g. prepared by mistake' if s.status == 'DRAFT' else 'e.g. wrong TDS amount' }}"></div>
+      <button class="btn danger" type="submit" {% if own %}disabled{% endif %} data-confirm="Cancel this slip?">{{ 'Discard draft' if s.status == 'DRAFT' else 'Withdraw slip' }}</button>
+    </form>
+    {% if s.status == 'ISSUED' %}<p class="small muted">The employee is told the slip was withdrawn. Prepare a corrected slip for the month afterwards.</p>{% endif %}
+  </section>
+  {% else %}
+  <section class="panel"><h2>Cancelled</h2><p>{{ s.cancelled_at|dt }}: {{ s.cancel_reason }}</p></section>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

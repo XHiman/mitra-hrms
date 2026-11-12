@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Salary slip {{ label }}{% endblock %}
+{% block content %}
+<div class="page-head no-print"><div><h1>Salary slip: {{ label }}</h1>
+  <p>Use your browser's Print button (Ctrl + P) to print it or save it as a PDF.</p></div>
+  <div class="actions"><button class="btn" type="button" data-print>Print / save as PDF</button>
+    {% if can('payroll.manage') and request.endpoint == 'payroll.slip_print' %}<a class="btn secondary" href="{{ url_for('payroll.slip_edit', slip_id=s.id) }}">Back</a>
+    {% else %}<a class="btn secondary" href="{{ url_for('payroll.my_slips') }}">All my slips</a>{% endif %}</div></div>
+{% if s.status == 'DRAFT' %}<div class="notice no-print">Draft: not yet issued, and not visible to the employee.</div>{% endif %}
+
+<article class="slip">
+  <header class="slip-head">
+    <img src="{{ url_for('static', filename='img/mitra-logo.jpg') }}" alt="MITRA logo" width="70" height="70">
+    <div><strong>Maharashtra Institution for Transformation (MITRA)</strong>
+      <span>Mumbai</span>
+      <em>Salary slip for the month of {{ label }}</em></div>
+    {% if s.status == 'DRAFT' %}<div class="slip-draft">DRAFT</div>{% endif %}
+  </header>
+  <table class="slip-info">
+    <tr><th>Employee name</th><td>{{ d.full_name }}</td><th>Employee ID</th><td>{{ d.emp_code }}</td></tr>
+    <tr><th>Designation</th><td>{{ d.designation or '—' }}</td><th>Department / Team</th><td>{{ d.department or '—' }}</td></tr>
+    <tr><th>Date of joining</th><td>{{ d.joining_date|date if d.joining_date else '—' }}</td><th>PAN</th><td>{{ d.pan or '—' }}</td></tr>
+    <tr><th>Bank</th><td>{{ d.bank_name or '—' }}{% if d.ifsc %} ({{ d.ifsc }}){% endif %}</td><th>Account number</th><td>{{ d.bank_account or '—' }}</td></tr>
+    <tr><th>Days in month</th><td>{{ s.days_in_month }}</td><th>Paid days{% if s.lop_days %} / loss of pay{% endif %}</th><td>{{ paid_days|days }}{% if s.lop_days %} / {{ s.lop_days|days }}{% endif %}</td></tr>
+  </table>
+  <table class="slip-money">
+    <thead><tr><th>Earnings</th><th class="num">Amount (₹)</th><th>Deductions</th><th class="num">Amount (₹)</th></tr></thead>
+    <tbody>
+    {% for i in range([earnings|length, deductions|length, 1]|max) %}
+      <tr><td>{{ earnings[i].name if i < earnings|length else '' }}</td><td class="num">{{ earnings[i].amount|money if i < earnings|length else '' }}</td>
+          <td>{{ deductions[i].name if i < deductions|length else '' }}</td><td class="num">{{ deductions[i].amount|money if i < deductions|length else '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><th>Gross earnings</th><th class="num">{{ s.gross|money }}</th><th>Total deductions</th><th class="num">{{ s.total_deductions|money }}</th></tr>
+      <tr class="net"><th colspan="3">Net pay</th><th class="num">₹ {{ s.net|money }}</th></tr>
+    </tfoot>
+  </table>
+  <p class="slip-words">Net pay in words: <strong>{{ words }}</strong></p>
+  {% if s.remarks %}<p class="slip-words">Remarks: {{ s.remarks }}</p>{% endif %}
+  <p class="slip-foot">This is a computer-generated salary slip and does not require a signature.{% if s.issued_at %} Issued on {{ s.issued_at|dt }}.{% endif %}</p>
+</article>
+{% endblock %}

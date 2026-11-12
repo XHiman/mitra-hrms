@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Home{% endblock %} | {{ org_name }} HRMS</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/mitra-logo.jpg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+{% from "_icons.html" import icon %}
+{% set ep = request.endpoint or '' %}
+{% macro nav(href, label, ico, active) -%}
+<a href="{{ href }}" class="{{ 'active' if active }}"{% if active %} aria-current="page"{% endif %}>{{ icon(ico) }}<span>{{ label }}</span></a>
+{%- endmacro %}
+{% set name_parts = current_user.full_name.replace('.', ' ').split() | reject('in', ['Dr', 'Shri', 'Smt', 'Mr', 'Mrs', 'Ms', 'Kum']) | list %}
+{% set initials = ((name_parts[0][0] if name_parts else '?') ~ (name_parts[-1][0] if name_parts|length > 1 else '')) | upper %}
+<div class="app">
+  <aside class="sidebar" id="sidenav">
+    <a class="brand" href="{{ url_for('dashboards.home') }}">
+      <img src="{{ url_for('static', filename='img/mitra-logo.jpg') }}" alt="MITRA logo" width="40" height="40">
+      <span><strong>MITRA HRMS</strong><small>Maharashtra Institution for Transformation</small></span>
+    </a>
+    <nav class="side-inner" aria-label="Main navigation">
+      <div class="nav-group">Me</div>
+      {% if can('leave.view_own') %}
+      {{ nav(url_for('dashboards.employee'), 'Home', 'home', ep == 'dashboards.employee') }}
+      {{ nav(url_for('leave.my_requests'), 'Leave', 'leave', ep in ('leave.my_requests', 'leave.apply', 'leave.detail')) }}
+      {% if can('leave.apply') %}{{ nav(url_for('compoff.index'), 'Comp-off', 'compoff', ep == 'compoff.index') }}{% endif %}
+      {% endif %}
+      {% if can('profile.view_own') %}
+      {{ nav(url_for('timesheet.month'), 'Timesheet', 'timesheet', ep in ('timesheet.month', 'timesheet.day', 'timesheet.week', 'timesheet.summary')) }}
+      {{ nav(url_for('payroll.my_slips'), 'Salary slips', 'salary', ep in ('payroll.my_slips', 'payroll.my_slip')) }}
+      {{ nav(url_for('dashboards.profile'), 'Profile', 'profile', ep == 'dashboards.profile') }}
+      {{ nav(url_for('dashboards.holidays'), 'Holidays', 'holidays', ep == 'dashboards.holidays') }}
+      {{ nav(url_for('exits.mine'), 'Resignation', 'exit', ep == 'exits.mine') }}
+      {% endif %}
+
+      {% if can('dashboard.supervisory') or can('leave.view_team') or can('leave.view_all') %}
+      <div class="nav-group">Team</div>
+      {% if can('dashboard.supervisory') %}{{ nav(url_for('dashboards.supervisory'), 'Team overview', 'overview', ep == 'dashboards.supervisory') }}{% endif %}
+      {{ nav(url_for('leave.records'), 'Leave records', 'records', ep == 'leave.records') }}
+      {{ nav(url_for('timesheet.team'), 'Timesheets', 'team', ep in ('timesheet.team', 'timesheet.view', 'timesheet.report')) }}
+      {% if can('analytics.view_team') or can('analytics.view_office') %}{{ nav(url_for('analytics.index'), 'Analytics', 'analytics', ep == 'analytics.index') }}{% endif %}
+      {% if can('leave.approve') and not can('exit.manage') %}{{ nav(url_for('exits.manage'), 'Resignations', 'file', ep in ('exits.manage', 'exits.detail')) }}{% endif %}
+      {% endif %}
+
+      {% if can('contracts.manage') or can('payroll.manage') or can('timesheet.manage') or can('exit.manage') %}
+      <div class="nav-group">HR</div>
+      {% if can('exit.manage') %}{{ nav(url_for('exits.manage'), 'Resignations', 'file', ep in ('exits.manage', 'exits.detail')) }}{% endif %}
+      {% if can('contracts.manage') %}{{ nav(url_for('dashboards.renewals'), 'Contracts', 'contract', ep == 'dashboards.renewals') }}{% endif %}
+      {% if can('payroll.manage') %}{{ nav(url_for('payroll.index'), 'Payroll', 'payroll', ep.startswith('payroll.') and ep not in ('payroll.my_slips', 'payroll.my_slip')) }}{% endif %}
+      {% if can('timesheet.manage') %}{{ nav(url_for('timesheet.project_list'), 'Projects', 'folder', ep in ('timesheet.project_list', 'timesheet.project_edit')) }}{% endif %}
+      {% endif %}
+
+      {% if can('dashboard.admin') %}
+      <div class="nav-group">Admin</div>
+      {{ nav(url_for('admin.dashboard'), 'Admin overview', 'shield', ep == 'admin.dashboard') }}
+      {% if can('users.manage') %}{{ nav(url_for('admin.users'), 'Users', 'users', ep.startswith('admin.user')) }}{% endif %}
+      {% if can('roles.manage') %}{{ nav(url_for('admin.roles'), 'Roles and permissions', 'key', ep.startswith('admin.role')) }}{% endif %}
+      {% if can('org.manage') %}{{ nav(url_for('admin.org'), 'Organisation', 'org', ep == 'admin.org') }}{% endif %}
+      {% if can('leave_config.manage') %}{{ nav(url_for('admin.leave_types'), 'Leave and holidays', 'sliders', ep.startswith('admin.leave_type')) }}{% endif %}
+      {% if can('workflow.manage') %}{{ nav(url_for('admin.workflows'), 'Approval workflows', 'workflow', ep.startswith('admin.workflow')) }}{% endif %}
+      {% if can('settings.manage') %}{{ nav(url_for('admin.settings'), 'Settings and backups', 'settings', ep in ('admin.settings', 'admin.backups')) }}{% endif %}
+      {% endif %}
+
+      {% if can('audit.view_own') or can('audit.view_scope') or can('audit.view_all') %}
+      <div class="nav-group">Records</div>
+      {{ nav(url_for('audit.index'), 'Audit log', 'history', ep == 'audit.index') }}
+      {% endif %}
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="userbar">
+      <button class="menu-toggle" type="button" aria-controls="sidenav" aria-expanded="false">{{ icon('menu', 20) }}<span class="sr-only">Menu</span></button>
+      <form class="topsearch" method="get" action="{{ url_for('dashboards.search') }}" role="search">
+        {{ icon('search', 16) }}
+        <input type="search" name="q" placeholder="Search staff or leave no." aria-label="Search staff by name or ID, or a leave request number" maxlength="60">
+      </form>
+      <div class="userbar-links">
+        {% if pending_actions or can('leave.approve') or can('compoff.approve') or can('contracts.manage') or can('payroll.manage') %}
+        <a href="{{ url_for('dashboards.pending') }}" class="top-link{{ ' here' if ep == 'dashboards.pending' }}">{{ icon('inbox') }}<span class="lbl">Pending actions</span>{% if pending_actions %}<span class="count">{{ pending_actions }}</span>{% endif %}</a>
+        {% endif %}
+        <a href="{{ url_for('notifications.index') }}" class="top-link icon-only{{ ' here' if ep == 'notifications.index' }}" title="Notifications">{{ icon('bell') }}<span class="sr-only">Notifications</span>{% if unread_notifications %}<span class="count">{{ unread_notifications }}</span>{% endif %}</a>
+        <details class="usermenu">
+          <summary><span class="avatar" aria-hidden="true">{{ initials }}</span>
+            <span class="who"><strong>{{ current_user.full_name }}</strong><small class="role">{{ current_user.role_name }}</small></span>{{ icon('chevron', 16) }}</summary>
+          <div class="menu-pop">
+            <a href="{{ url_for('dashboards.profile') }}">{{ icon('profile', 16) }} My profile</a>
+            <a href="{{ url_for('auth.change_password') }}">{{ icon('lock', 16) }} Change password</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit">{{ icon('exit', 16) }} Log out</button>
+            </form>
+          </div>
+        </details>
+      </div>
+    </header>
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}<div class="flash {{ cat }}" role="status">{{ msg }}</div>{% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="site-foot">Maharashtra Institution for Transformation (MITRA), Mumbai. HRMS pilot version, for internal use only.</footer>
+  </div>
+</div>
+<div class="nav-backdrop" aria-hidden="true"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Pending actions{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Pending actions</h1>
+  <p>Everything waiting for you, in one place.</p></div></div>
+
+{% if not t.total %}
+<section class="panel empty-state">
+  <h2>Nothing is waiting for you</h2>
+  <p>New leave requests, comp-off claims and HR tasks will appear here, and the count in the header will show how many.</p>
+</section>
+{% endif %}
+
+{% if t.renewals_missing or t.slip_drafts or t.end_missing %}
+<section class="panel">
+  <h2>HR tasks</h2>
+  <ul class="tasklist">
+    {% if t.renewals_missing %}<li><span><strong>{{ t.renewals_missing }}</strong> employee{{ 's' if t.renewals_missing != 1 }} without a next contract renewal date</span>
+      <a class="btn secondary small" href="{{ url_for('dashboards.renewals') }}">Record dates</a></li>{% endif %}
+    {% if t.end_missing %}<li><span><strong>{{ t.end_missing }}</strong> employee{{ 's' if t.end_missing != 1 }} without a contract end date (timesheet and leave are not closed for them)</span>
+      <a class="btn secondary small" href="{{ url_for('dashboards.renewals') }}">Record end dates</a></li>{% endif %}
+    {% if t.slip_drafts %}<li><span><strong>{{ t.slip_drafts }}</strong> draft salary slip{{ 's' if t.slip_drafts != 1 }} waiting to be checked and issued</span>
+      <a class="btn secondary small" href="{{ url_for('payroll.index', month=t.month) }}">Open salary slips</a></li>{% endif %}
+  </ul>
+</section>
+{% endif %}
+
+{% if can('leave.approve') %}
+<section class="panel">
+  <div class="panel-head"><h2>Leave requests ({{ t.leave|length }})</h2></div>
+  {% set pending_rows = t.leave %}{% set return_to = 'pending' %}
+  {% include "dashboards/_pending_table.html" %}
+</section>
+{% endif %}
+
+{% if t.resignations %}
+<section class="panel">
+  <div class="panel-head"><h2>Resignations ({{ t.resignations|length }})</h2><a class="small" href="{{ url_for('exits.manage') }}">All resignations</a></div>
+  <ul class="tasklist">
+    {% for r in t.resignations %}
+    <li><span><strong>{{ r.employee_name }}</strong>, {{ r.designation or r.emp_code }}:
+      {% if r.status == 'WITH_OFFICER' %}add your remarks and forward to HR{% elif r.status == 'WITH_HR' %}accept and fix the last working day (requested {{ r.proposed_lwd|date }}){% else %}last working day {{ r.accepted_lwd|date }} has arrived; complete clearance and relieve{% endif %}</span>
+      <a class="btn secondary small" href="{{ url_for('exits.detail', rid=r.id) }}">Open</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if can('compoff.approve') %}
+<section class="panel">
+  <div class="panel-head"><h2>Comp-off claims ({{ t.compoff|length }})</h2><a class="small" href="{{ url_for('compoff.approvals') }}">All comp-off claims</a></div>
+  {% set claims = t.compoff %}{% set return_to = 'pending' %}
+  {% include "compoff/_pending_claims.html" %}
+</section>
+{% endif %}
+{% endblock %}

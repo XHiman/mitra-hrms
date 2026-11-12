@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Pending approvals{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Pending approvals</h1><p>Only requests whose current workflow stage is assigned to you are listed.</p></div></div>
+<section class="panel">
+  {% set pending_rows = rows %}{% set return_to = 'queue' %}
+  {% include "dashboards/_pending_table.html" %}
+</section>
+{% endblock %}

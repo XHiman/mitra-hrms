@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Audit log</h1>
+  <p>{% if full %}Complete, append-only system audit trail.{% elif can('audit.view_scope') %}Audit entries for leave requests within your authorised scope and your own actions.{% else %}Audit entries for your own leave requests and account.{% endif %}</p></div>
+  {% if full %}<a class="btn secondary" href="{{ url_for('audit.index', verify=1) }}">Verify integrity</a>{% endif %}</div>
+
+{% if integrity %}
+  {% if integrity[0] %}<div class="flash success">Integrity verified: {{ integrity[1] }} entries, hash chain intact.</div>
+  {% else %}<div class="flash error">Integrity check FAILED at entry #{{ integrity[2] }} – the log may have been altered outside the application.</div>{% endif %}
+{% endif %}
+
+<section class="panel">
+  <form class="filters" method="get">
+    <div class="field"><label for="u">User</label><input type="text" id="u" name="user" value="{{ f.user }}"></div>
+    <div class="field"><label for="a">Action</label><select id="a" name="action"><option value="">All</option>
+      {% for a in actions %}<option {{ 'selected' if f.action == a }}>{{ a }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="e">Record type</label><select id="e" name="entity"><option value="">All</option>
+      {% for e in entities %}<option {{ 'selected' if f.entity == e }}>{{ e }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="ei">Record ID</label><input type="text" id="ei" name="entity_id" value="{{ f.entity_id }}"></div>
+    <div class="field"><label for="fr">From</label><input type="date" id="fr" name="from" value="{{ f['from'] }}"></div>
+    <div class="field"><label for="to">To</label><input type="date" id="to" name="to" value="{{ f.to }}"></div>
+    <button class="btn secondary" type="submit">Filter</button>
+  </form>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Date / time</th><th>User</th><th>Action</th><th>Record</th><th>Previous value</th><th>New value</th><th>Remarks</th>{% if full %}<th>IP / device</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.id }}</td><td class="nowrap small">{{ r.ts|dt }}</td>
+        <td>{{ r.username or 'system' }}<div class="muted small">{{ r.role_code or '' }}</div></td>
+        <td><strong class="small">{{ r.action }}</strong></td>
+        <td class="small">{% if r.entity == 'leave_request' and r.entity_id %}<a href="{{ url_for('leave.detail', request_id=r.entity_id) }}">{{ r.entity }} #{{ r.entity_id }}</a>{% else %}{{ r.entity }}{% if r.entity_id %} #{{ r.entity_id }}{% endif %}{% endif %}</td>
+        <td>{% if r.prev_state %}<span class="code">{{ r.prev_state|truncate(220) }}</span>{% endif %}</td>
+        <td>{% if r.new_state %}<span class="code">{{ r.new_state|truncate(220) }}</span>{% endif %}</td>
+        <td class="small">{{ r.remarks or '' }}</td>
+        {% if full %}<td class="small muted">{{ r.ip or '' }}<div title="{{ r.user_agent or '' }}">{{ (r.user_agent or '')|truncate(30) }}</div></td>{% endif %}
+      </tr>
+    {% else %}<tr><td colspan="9" class="empty">No audit entries match.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted small">Showing the latest 500 matching entries. Audit entries cannot be edited or deleted.</p>
+</section>
+{% endblock %}

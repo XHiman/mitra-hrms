@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period, csrf %}
+{% block title %}Leave request #{{ req.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Leave request #{{ req.id }} {{ status(req.status) }}</h1>
+    <p>{{ req.employee_name }}, {{ req.leave_type_name }}, {{ period(req) }}</p></div>
+  {% if not own and (can('leave.view_team') or can('leave.view_all') or can_act) %}
+    <a class="btn secondary" href="{{ url_for('dashboards.employee_history', employee_id=req.employee_id) }}">Employee leave history</a>{% endif %}
+</div>
+
+<div class="grid grid-3">
+  <div>
+    <section class="panel">
+      <h2>Application</h2>
+      <dl class="facts">
+        <dt>Employee</dt><dd>{{ req.employee_name }} ({{ req.emp_code }})</dd>
+        <dt>Designation</dt><dd>{{ req.designation or '—' }}</dd>
+        <dt>Department / Team</dt><dd>{{ req.department or '—' }}</dd>
+        <dt>Leave type</dt><dd>{{ req.leave_type_name }}</dd>
+        <dt>Duration</dt><dd>{{ period(req) }}</dd>
+        <dt>Number of days</dt><dd><strong>{{ req.days|days }}</strong></dd>
+        <dt>Reason</dt><dd>{{ req.reason }}</dd>
+        <dt>Applied on</dt><dd>{{ req.submitted_at|dt }}</dd>
+        <dt>Supporting document</dt><dd>{% if req.attachment_path %}<a href="{{ url_for('leave.document', request_id=req.id) }}">{{ req.attachment_name }}</a>{% else %}None{% endif %}</dd>
+        <dt>Current stage</dt><dd>{{ req.current_stage_name or '—' }}</dd>
+        {% if req.decided_at %}<dt>Decided</dt><dd>{{ req.decided_at|dt }} by {{ req.decided_by_name }}</dd>
+        <dt>Remarks</dt><dd>{{ req.decision_remarks or '—' }}</dd>{% endif %}
+        {% if req.cancelled_at %}<dt>Cancelled</dt><dd>{{ req.cancelled_at|dt }}{% if req.cancel_reason %} ({{ req.cancel_reason }}){% endif %}</dd>{% endif %}
+      </dl>
+    </section>
+
+    {% if can_act %}
+    <section class="panel">
+      <h2>Your decision ({{ req.current_stage_name }})</h2>
+      <form method="post" action="{{ url_for('approvals.decide', request_id=req.id) }}">
+        {{ csrf() }}
+        <input type="hidden" name="stage" value="{{ req.current_stage }}">
+        <div class="field"><label for="rm">Remarks</label><textarea id="rm" name="remarks" maxlength="1000"></textarea>
+          <div class="hint">Remarks are mandatory when rejecting and are visible to the employee.</div></div>
+        <div class="actions">
+          <button class="btn good" name="decision" value="approve" data-confirm="Approve this leave request?">Approve</button>
+          <button class="btn danger" name="decision" value="reject" data-confirm="Reject this leave request?">Reject</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if can_cancel %}
+    <section class="panel">
+      <h2>{{ 'Withdraw application' if req.status == 'PENDING' else 'Cancel approved leave' }}</h2>
+      <form method="post" action="{{ url_for('leave.cancel', request_id=req.id) }}" class="inline-form">
+        {{ csrf() }}
+        <div class="field"><label for="cr">Reason (optional)</label><input type="text" id="cr" name="reason" maxlength="500"></div>
+        <button class="btn danger" type="submit" data-confirm="Are you sure? This cannot be undone.">{{ 'Withdraw' if req.status == 'PENDING' else 'Cancel leave' }}</button>
+      </form>
+    </section>
+    {% endif %}
+  </div>
+
+  <div>
+    <section class="panel">
+      <h2>Approval trail</h2>
+      <ul class="timeline">
+        {% for s in trail %}
+        <li><strong>{{ s.seq }}. {{ s.stage_name }}</strong> {{ status(s.status) }}
+          <div class="small muted">
+            {% if s.approver_type == 'REPORTING_OFFICER' %}Reporting officer{% elif s.approver_type == 'ROLE' %}Role: {{ s.role_name }}{% else %}User: {{ s.target_username }}{% endif %}
+            {% if s.fallback_role_name %}; fallback: {{ s.fallback_role_name }}{% endif %}</div>
+          {% if s.acted_by %}<div class="small">{{ s.acted_by_name }}, {{ s.acted_at|dt }}</div>{% endif %}
+          {% if s.remarks %}<div class="small">“{{ s.remarks }}”</div>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% if history %}
+    <section class="panel">
+      <h2>Audit history</h2>
+      <ul class="list">
+        {% for h in history %}
+          <li><strong>{{ h.action|replace('_', ' ')|title }}</strong>
+            <div class="small">{{ h.username or 'system' }} ({{ h.role_code or '—' }}), {{ h.ts|dt }}</div>
+            {% if h.remarks %}<div class="small muted">{{ h.remarks }}</div>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% from "payroll/_lines.html" import line_inputs %}
+{% block title %}Pay structure: {{ emp.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Pay structure: {{ emp.full_name }}</h1>
+  <p>{{ emp.emp_code }}{% if emp.designation %}, {{ emp.designation }}{% endif %}{% if emp.department %}, {{ emp.department }}{% endif %}. Monthly amounts used to prepare each month's slip.</p></div>
+  <a class="btn secondary" href="{{ url_for('payroll.index', month=month) }}">Back to salary slips</a></div>
+<section class="panel medium">
+  {% if own %}<div class="notice">This is your own pay structure. Another payroll officer must set it up or change it.</div>{% endif %}
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="grid grid-2">
+      <div>{{ line_inputs(form, rows, 'earning', 'Earnings', 'e.g. Consolidated remuneration') }}</div>
+      <div>{{ line_inputs(form, rows, 'deduction', 'Deductions', 'e.g. TDS') }}</div>
+    </div>
+    <h3 class="mt">Payment details (printed on the slip)</h3>
+    <div class="form-grid">
+      <div class="field"><label for="pan">PAN</label><input type="text" id="pan" name="pan" maxlength="10" value="{{ form.get('pan', '') }}"></div>
+      <div class="field"><label for="bn">Bank name</label><input type="text" id="bn" name="bank_name" maxlength="80" value="{{ form.get('bank_name', '') }}"></div>
+      <div class="field"><label for="ba">Bank account number</label><input type="text" id="ba" name="bank_account" maxlength="20" inputmode="numeric" value="{{ form.get('bank_account', '') }}"></div>
+      <div class="field"><label for="ifsc">IFSC</label><input type="text" id="ifsc" name="ifsc" maxlength="11" value="{{ form.get('ifsc', '') }}"></div>
+    </div>
+    <p class="small muted">Leave unused rows blank. Changes apply to slips prepared from now on; slips already prepared are not changed.</p>
+    <button class="btn" type="submit" {% if own %}disabled{% endif %}>Save pay structure</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Search</h1>
+  <p>{% if q %}Results for "{{ q }}"{% else %}Search staff by name, employee ID, designation or department, or open a leave request by its number.{% endif %}</p></div>
+  <form method="get" class="inline-form" role="search">
+    <div class="field"><label for="sq">Search</label><input type="search" id="sq" name="q" value="{{ q }}" minlength="2" maxlength="60" autofocus></div>
+    <button class="btn" type="submit">Search</button>
+  </form></div>
+
+{% if leave_hit %}
+<section class="panel">
+  <h2>Leave request #{{ leave_hit.id }}</h2>
+  <p><a href="{{ url_for('leave.detail', request_id=leave_hit.id) }}">{{ leave_hit.employee_name }}, {{ leave_hit.leave_type_name }}, {{ period(leave_hit) }}</a> {{ status(leave_hit.status) }}</p>
+</section>
+{% endif %}
+
+{% if q %}
+<section class="panel">
+  <h2>Staff ({{ people|length }})</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Name</th><th>Employee ID</th><th>Designation</th><th>Department / Team</th></tr></thead>
+    <tbody>
+    {% for p in people %}
+      <tr><td>{% if p.own %}<a href="{{ url_for('dashboards.profile') }}">{{ p.r.full_name }}</a> <span class="muted small">(you)</span>
+          {% elif p.open %}<a href="{{ url_for('dashboards.employee_history', employee_id=p.r.id) }}">{{ p.r.full_name }}</a>
+          {% else %}{{ p.r.full_name }}{% endif %}</td>
+        <td>{{ p.r.emp_code }}</td><td>{{ p.r.designation or '—' }}</td><td>{{ p.r.department or '—' }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No staff match "{{ q }}". Try part of a name or an employee ID such as MT024.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

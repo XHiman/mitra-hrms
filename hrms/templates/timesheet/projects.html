@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Projects{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Projects</h1>
+  <p>Projects and work areas staff book time against. Only <strong>Active</strong> projects appear in the timesheet; mark a project Completed instead of deleting it, so past timesheets keep their history.</p></div>
+  <div class="actions"><a class="btn secondary" href="{{ url_for('timesheet.report') }}">Monthly report</a>
+    <a class="btn" href="{{ url_for('timesheet.project_edit') }}">Add project</a></div></div>
+
+<nav class="tabs" aria-label="Project status">
+  <a href="{{ url_for('timesheet.project_list') }}" class="{{ 'here' if not status }}">All ({{ total }})</a>
+  {% for k, label in statuses.items() %}<a href="{{ url_for('timesheet.project_list', status=k) }}" class="{{ 'here' if status == k }}">{{ label }} ({{ counts[k] }})</a>{% endfor %}
+</nav>
+
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Project</th><th>Department</th><th>Project head</th><th>Duration</th><th>Funding / client</th>
+      <th class="num">Hours booked</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for p in projects %}
+      <tr><td><a href="{{ url_for('timesheet.project_edit', project_id=p.id) }}"><strong>{{ p.name }}</strong></a>
+          <div class="muted small">{{ p.code or '' }}{% if p.code and p.description %}, {% endif %}{{ (p.description or '')|truncate(70) }}</div></td>
+        <td>{{ p.department or '—' }}</td>
+        <td>{{ p.head_name or '—' }}</td>
+        <td class="nowrap small">{% if p.start_date or p.end_date %}{{ p.start_date|date or '…' }} to {{ p.end_date|date or 'ongoing' }}{% else %}—{% endif %}</td>
+        <td class="small">{{ p.funding or '—' }}</td>
+        <td class="num">{{ p.hours|days }}<div class="muted small">{{ p.people }} {{ 'person' if p.people == 1 else 'people' }}</div></td>
+        <td><span class="badge {{ {'ACTIVE': 'good', 'ON_HOLD': 'warning', 'COMPLETED': 'neutral'}[p.status] }}">{{ statuses[p.status] }}</span></td>
+        <td><a class="btn secondary small" href="{{ url_for('timesheet.project_edit', project_id=p.id) }}">Edit</a></td></tr>
+    {% else %}<tr><td colspan="8" class="empty">No projects here yet. <a href="{{ url_for('timesheet.project_edit') }}">Add a project</a>.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Apply for leave{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Apply for leave</h1><p>Your application goes to the authority configured in the approval workflow.</p></div></div>
+<div class="grid grid-3">
+<section class="panel">
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  {% if not types %}<div class="notice">No leave types are currently available to you. Please contact HR / the administrator.</div>{% endif %}
+  <form id="apply-form" method="post" enctype="multipart/form-data" data-preview="{{ url_for('leave.preview') }}">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field full"><label for="lt">Leave type</label>
+        <select id="lt" name="leave_type_id" required>
+          <option value="">— Select —</option>
+          {% for t in types %}
+            {% set b = balances.get(t.id) %}
+            <option value="{{ t.id }}" {{ 'selected' if form.get('leave_type_id') == t.id|string }}
+              data-available="{{ b.available if t.balance_tracked and b and b.available is not none else '' }}"
+              data-hint="{% if t.balance_tracked and b and b.available is not none %}Available: {{ b.available|days }} day(s). {% elif t.balance_tracked %}Entitlement not configured yet. {% endif %}{% if t.requires_document %}Supporting document mandatory. {% elif t.document_after_days is not none %}Document mandatory above {{ t.document_after_days|days }} day(s). {% endif %}{% if t.max_days is not none %}Max {{ t.max_days|days }} day(s) per application. {% endif %}{% if t.min_notice_days %}Apply {{ t.min_notice_days }} day(s) in advance. {% endif %}{% if t.count_non_working_days %}Weekends/holidays are counted.{% else %}Weekends/holidays are excluded.{% endif %}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint" id="type-hint"></div></div>
+      <div class="field"><label for="fd">From date</label><input type="date" id="fd" name="from_date" required value="{{ form.get('from_date', '') }}"></div>
+      <div class="field"><label for="td">To date</label><input type="date" id="td" name="to_date" required value="{{ form.get('to_date', '') }}"></div>
+      <div class="field full"><label for="hd">Duration</label>
+        <select id="hd" name="half_day">
+          <option value="" {{ 'selected' if not form.get('half_day') }}>Full day(s)</option>
+          <option value="FIRST" {{ 'selected' if form.get('half_day') == 'FIRST' }}>Half day: first half (morning)</option>
+          <option value="SECOND" {{ 'selected' if form.get('half_day') == 'SECOND' }}>Half day: second half (afternoon)</option>
+        </select>
+        <div class="hint">A half day is one date and counts as 0.5 day. The other half of that day can be booked on the timesheet.</div></div>
+      {% if contract_end %}<div class="field full"><div class="hint">Your contract ends on {{ contract_end|date }}; leave after that date cannot be applied for.</div></div>{% endif %}
+      <div class="field full"><label>Number of leave days</label><div><strong id="day-count">—</strong></div>
+        <div class="hint">Calculated by the system using the leave type's rules and the holiday calendar.</div></div>
+      <div class="field full"><label for="rs">Reason</label><textarea id="rs" name="reason" required maxlength="1000">{{ form.get('reason', '') }}</textarea></div>
+      <div class="field full"><label for="doc">Supporting document <span class="muted">(optional unless the leave type requires it)</span></label>
+        <input type="file" id="doc" name="document" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg">
+        <div class="hint">PDF, PNG or JPEG, up to 5 MB.</div></div>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Submit application</button>
+      <a class="btn secondary" href="{{ url_for('dashboards.employee') }}">Cancel</a></div>
+  </form>
+</section>
+<section class="panel">
+  <h2>Your balances</h2>
+  <ul class="list">
+    {% for t in types %}{% set b = balances.get(t.id) %}
+      <li><strong>{{ t.name }}</strong><br><span class="small muted">
+        {% if not t.balance_tracked %}Not balance-tracked{% elif b.available is none %}Entitlement not configured{% else %}{{ b.available|days }} available, {{ b.pending|days }} pending, {{ b.used|days }} used{% endif %}</span></li>
+    {% else %}<li class="muted">—</li>{% endfor %}
+  </ul>
+</section>
+</div>
+{% endblock %}

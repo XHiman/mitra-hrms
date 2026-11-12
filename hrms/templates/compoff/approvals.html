@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "macros.html" import status %}
+{% block title %}Comp-off approvals{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Comp-off approvals</h1>
+  <p>Claims for work you assigned. Approving confirms the work was done and credits the days to the employee's comp-off balance.</p></div></div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Awaiting your action</h2></div>
+  {% set claims = pending %}{% set return_to = 'approvals' %}
+  {% include "compoff/_pending_claims.html" %}
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Recently decided by you</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Date worked</th><th class="num">Days</th><th>Decision</th><th>Remarks</th><th>When</th></tr></thead>
+    <tbody>
+    {% for c in decided %}
+      <tr><td>{{ c.employee_name }}</td><td class="nowrap">{{ c.worked_date|date }}</td><td class="num">{{ c.days|days }}</td>
+        <td>{{ status(c.status) }}</td><td class="small">{{ c.decision_remarks or '' }}</td><td class="nowrap small">{{ c.decided_at|dt }}</td></tr>
+    {% else %}<tr><td colspan="6" class="empty">No decisions yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+{% if can('leave.view_team') or can('leave.view_all') %}
+<section class="panel">
+  <div class="panel-head"><h2>Comp-off claims ({% if scope_all %}all employees{% else %}your team{% endif %})</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Date worked</th><th class="num">Days</th><th>Work done</th><th>Assigned by</th><th>Status</th><th>Claimed on</th></tr></thead>
+    <tbody>
+    {% for c in in_scope %}
+      <tr><td>{{ c.employee_name }}<div class="muted small">{{ c.department or '' }}</div></td><td class="nowrap">{{ c.worked_date|date }}</td>
+        <td class="num">{{ c.days|days }}</td><td class="small">{{ c.work_details|truncate(90) }}</td><td>{{ c.approver_name }}</td>
+        <td>{{ status(c.status) }}</td><td class="nowrap small">{{ c.submitted_at|dt }}</td></tr>
+    {% else %}<tr><td colspan="7" class="empty">No comp-off claims in your scope.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

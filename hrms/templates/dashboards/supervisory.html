@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period, calendar, contract_state %}
+{% block title %}Supervisory dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Supervisory dashboard</h1>
+    <p>Showing {% if scope_all %}all employees{% else %}employees reporting to you{% endif %}. Counts are for {{ year }}; balances are for each person's current leave cycle.</p></div>
+  <a class="btn secondary" href="{{ url_for('leave.records') }}">All leave records</a>
+</div>
+
+<section class="kpis" aria-label="Summary">
+  <div class="kpi"><div class="label">Total employees</div><div class="value">{{ total_employees }}</div><div class="sub">active, in your scope</div></div>
+  <div class="kpi"><div class="label">On leave today</div><div class="value">{{ on_leave_today|length }}</div>
+    <div class="sub">{% for r in on_leave_today[:2] %}{{ r.employee_name }}{% if not loop.last %}, {% endif %}{% else %}nobody{% endfor %}{% if on_leave_today|length > 2 %} …{% endif %}</div></div>
+  <div class="kpi {{ 'alert' if pending_rows or pending_claims }}"><div class="label">Pending approvals</div><div class="value">{{ pending_rows|length + pending_claims|length }}</div><div class="sub">{{ pending_rows|length }} leave, {{ pending_claims|length }} comp-off</div></div>
+  <div class="kpi"><div class="label">Upcoming leaves</div><div class="value">{{ upcoming|length }}</div><div class="sub">approved, next 30 days</div></div>
+</section>
+
+<section class="panel" id="pending">
+  <div class="panel-head"><h2>Pending leave requests</h2><span class="muted small">This year: {{ approved_count }} approved, {{ rejected_count }} rejected</span></div>
+  {% set return_to = 'dashboard' %}
+  {% include "dashboards/_pending_table.html" %}
+</section>
+
+{% if can('compoff.approve') %}
+<section class="panel" id="compoff">
+  <div class="panel-head"><h2>Pending comp-off claims</h2><a class="small" href="{{ url_for('compoff.approvals') }}">All comp-off claims</a></div>
+  {% set claims = pending_claims %}{% set return_to = 'dashboard' %}
+  {% include "compoff/_pending_claims.html" %}
+</section>
+{% endif %}
+
+<div class="grid grid-2">
+  <section class="panel">
+    <div class="panel-head"><h2>Leave utilisation summary</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Leave type</th><th class="num">Entitled</th><th class="num">Used</th><th class="num">Pending</th><th>Utilisation</th></tr></thead>
+      <tbody>
+      {% for u in utilisation %}
+        <tr><td>{{ u.lt.name }}</td>
+          {% if u.entitlement is none %}<td colspan="4" class="muted">Entitlement not yet configured</td>
+          {% else %}
+          <td class="num">{{ u.entitlement|days }}</td><td class="num">{{ u.used|days }}</td><td class="num">{{ u.pending|days }}</td>
+          <td><div class="actions"><div class="bar" aria-hidden="true"><span data-pct="{{ u.pct }}"></span></div><span class="small">{{ u.pct }}%</span></div></td>
+          {% endif %}</tr>
+      {% else %}<tr><td colspan="5" class="empty">No balance-tracked leave types.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Department / team summary</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Department</th><th class="num">Staff</th><th class="num">On leave today</th><th class="num">Days used</th><th class="num">Pending</th></tr></thead>
+      <tbody>
+      {% for d in dept_summary %}
+        <tr><td>{{ d.name }}</td><td class="num">{{ d.headcount }}</td><td class="num">{{ d.on_leave }}</td><td class="num">{{ d.days_used|days }}</td><td class="num">{{ d.pending }}</td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No departments in scope.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Contract renewals due in the next 60 days</h2>
+    {% if renewals_missing %}<span class="small"><span class="due-soon">{{ renewals_missing }} without a renewal date.</span>{% if can('contracts.manage') %} <a href="{{ url_for('dashboards.renewals') }}">Record dates</a>{% endif %}</span>{% endif %}</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Designation / Dept.</th><th>Current term from</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for r in renewals_due %}
+      <tr><td><a href="{{ url_for('dashboards.employee_history', employee_id=r.emp.id) }}#contract">{{ r.emp.full_name }}</a></td>
+        <td>{{ r.emp.designation or '—' }}<div class="muted small">{{ r.emp.department or '' }}</div></td>
+        <td class="nowrap">{{ r.s.term_start|date }}</td>
+        <td>{{ contract_state(r.s) }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No contract renewals due in the next 60 days.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<div class="grid grid-2">
+  <section class="panel">
+    <div class="panel-head"><h2>Upcoming leaves (30 days)</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Leave type</th><th>Period</th><th class="num">Days</th></tr></thead>
+      <tbody>
+      {% for r in upcoming %}
+        <tr><td><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.employee_name }}</a></td><td>{{ r.leave_type_name }}</td><td>{{ period(r) }}</td><td class="num">{{ r.days|days }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">No upcoming approved leave.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Recent approvals / rejections</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Leave</th><th>Decision</th><th>By</th><th>When</th></tr></thead>
+      <tbody>
+      {% for r in recent_decisions %}
+        <tr><td><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.employee_name }}</a></td>
+          <td>{{ r.leave_type_name }}<div class="muted small">{{ r.days|days }} day(s)</div></td>
+          <td>{{ status(r.status) }}</td><td>{{ r.decided_by_name or '—' }}</td><td class="nowrap small">{{ r.decided_at|dt }}</td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No decisions yet.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+
+<section class="panel">{{ calendar(cal, cal_month, prev, nxt, 'dashboards.supervisory') }}</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Employee-wise leave summary</h2><span class="muted small">Used / available days in each person's current leave cycle</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Department</th>{% for t in types %}<th class="num">{{ t.name }}</th>{% endfor %}<th></th></tr></thead>
+    <tbody>
+    {% for row in employee_summary %}
+      <tr><td><strong>{{ row.emp.full_name }}</strong><div class="muted small">{{ row.emp.designation or '' }}</div></td>
+        <td>{{ row.emp.department or '—' }}</td>
+        {% for b in row.balances %}
+          <td class="num">{% if not b.tracked %}{{ b.used|days }}{% elif b.entitlement is none %}<span class="muted">—</span>{% else %}{{ b.used|days }} / {{ b.available|days }}{% if b.pending %}<div class="muted small">{{ b.pending|days }} pending</div>{% endif %}{% endif %}</td>
+        {% endfor %}
+        <td><a class="small" href="{{ url_for('dashboards.employee_history', employee_id=row.emp.id) }}">History</a></td></tr>
+    {% else %}<tr><td colspan="{{ types|length + 3 }}" class="empty">No employees in scope.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

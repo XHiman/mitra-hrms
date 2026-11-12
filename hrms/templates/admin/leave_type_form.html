@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf, fval %}
+{% block title %}{{ lt.name if lt else 'Add leave type' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ lt.name if lt else 'Add leave type' }}</h1><p>Configure according to MITRA's approved HR policy. Leave a field blank where no rule applies.</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.leave_types') }}">Back</a></div>
+<section class="panel medium">
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field"><label for="cd">Code</label><input type="text" id="cd" name="code" required maxlength="10" value="{{ fval(form.get('code')) }}"></div>
+      <div class="field"><label for="nm">Name</label><input type="text" id="nm" name="name" required maxlength="80" value="{{ fval(form.get('name')) }}"></div>
+      <div class="field full"><label for="ds">Description</label><textarea id="ds" name="description" maxlength="500">{{ fval(form.get('description')) }}</textarea></div>
+    </div>
+
+    <h2 class="mt">Entitlement</h2>
+    <label class="check"><input type="checkbox" name="balance_tracked" value="1" {{ 'checked' if form.get('balance_tracked') }}> <span>Track a balance for this leave type</span></label>
+    <label class="check"><input type="checkbox" name="credit_based" value="1" {{ 'checked' if form.get('credit_based') }}> <span>Compensatory off – balance is earned only through approved comp-off claims (no annual entitlement)</span></label>
+    <div class="form-grid">
+      <div class="field"><label for="ae">Annual entitlement (days)</label><input type="number" step="0.5" min="0" id="ae" name="annual_entitlement" value="{{ fval(form.get('annual_entitlement')) }}">
+        <div class="hint">Blank = not yet configured; employees cannot apply until set. Changes apply to the current and future leave years (except individual adjustments).</div></div>
+      <div class="field"><label for="ac">Monthly credit (days)</label><input type="number" step="0.25" min="0" id="ac" name="accrual_per_month" value="{{ fval(form.get('accrual_per_month')) }}">
+        <div class="hint">Optional. If set, this many days are added on the 1st of every month (from the joining month for new staff), up to the annual entitlement. Blank = full entitlement available from the start of the year.</div></div>
+    </div>
+
+    <h2 class="mt">Rules</h2>
+    <div class="form-grid">
+      <div class="field"><label for="mn">Minimum days per application</label><input type="number" step="0.5" min="0" id="mn" name="min_days" value="{{ fval(form.get('min_days')) }}"></div>
+      <div class="field"><label for="mx">Maximum days per application</label><input type="number" step="0.5" min="0" id="mx" name="max_days" value="{{ fval(form.get('max_days')) }}"></div>
+      <div class="field"><label for="nt">Minimum advance notice (days)</label><input type="number" min="0" max="365" id="nt" name="min_notice_days" value="{{ fval(form.get('min_notice_days')) }}"></div>
+      <div class="field"><label for="da">Document mandatory above (days)</label><input type="number" step="0.5" min="0" id="da" name="document_after_days" value="{{ fval(form.get('document_after_days')) }}"></div>
+    </div>
+    <label class="check"><input type="checkbox" name="requires_document" value="1" {{ 'checked' if form.get('requires_document') }}> <span>Supporting document always mandatory</span></label>
+    <label class="check"><input type="checkbox" name="count_non_working_days" value="1" {{ 'checked' if form.get('count_non_working_days') }}> <span>Count weekly offs and holidays as leave days (calendar days)</span></label>
+    <label class="check"><input type="checkbox" name="allow_backdated" value="1" {{ 'checked' if form.get('allow_backdated') }}> <span>Allow applications for past dates</span></label>
+
+    <h2 class="mt">Eligibility &amp; approval</h2>
+    <div class="field"><label>Applicable employment types</label>
+      {% for t in employment_types %}<label class="check"><input type="checkbox" name="eligible_employment_types" value="{{ t }}" {{ 'checked' if t in selected_types }}> <span>{{ t }}</span></label>{% endfor %}
+      <div class="hint">None selected = applicable to all.</div></div>
+    <div class="field"><label for="wf">Approval workflow</label><select id="wf" name="workflow_id"><option value="">Default workflow</option>
+      {% for w in workflows %}<option value="{{ w.id }}" {{ 'selected' if form.get('workflow_id')|string == w.id|string }}>{{ w.name }}</option>{% endfor %}</select></div>
+    <label class="check"><input type="checkbox" name="is_paid" value="1" {{ 'checked' if form.get('is_paid') }}> <span>Paid leave – counts as booked time on the timesheet (unpaid leave days show a shortfall)</span></label>
+    <label class="check"><input type="checkbox" name="is_active" value="1" {{ 'checked' if form.get('is_active') }}> <span>Active (available for new applications)</span></label>
+    <button class="btn mt" type="submit">Save leave type</button>
+  </form>
+</section>
+{% endblock %}

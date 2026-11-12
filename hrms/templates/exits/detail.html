@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Resignation #{{ r.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Resignation #{{ r.id }} <span class="badge {{ r.status }}">{{ labels[r.status] }}</span></h1>
+    <p>{{ r.employee_name }}, {{ r.designation or 'no designation' }}{% if r.department %}, {{ r.department }}{% endif %}</p></div>
+  <a class="btn secondary small" href="{{ url_for('exits.mine') if own else url_for('exits.manage') }}">Back</a>
+</div>
+
+<div class="grid grid-3">
+  <div>
+    <section class="panel">
+      <h2>Resignation</h2>
+      <dl class="facts">
+        <dt>Employee</dt><dd>{{ r.employee_name }} ({{ r.emp_code }})</dd>
+        <dt>Joined</dt><dd>{{ r.joining_date|date or '—' }}</dd>
+        <dt>Reason</dt><dd>{{ r.reason_category }}</dd>
+        <dt>Details</dt><dd class="prewrap">{{ r.reason }}</dd>
+        <dt>Submitted</dt><dd>{{ r.submitted_at|dt }}</dd>
+        <dt>Requested last day</dt><dd>{{ r.proposed_lwd|date }}</dd>
+        {% if r.accepted_lwd %}<dt>Last working day</dt><dd><strong>{{ r.accepted_lwd|date }}</strong> (fixed by HR)</dd>{% endif %}
+        <dt>Notice</dt><dd>{{ notice_note }}</dd>
+      </dl>
+    </section>
+
+    {% if acting and r.status == 'WITH_OFFICER' %}
+    <section class="panel">
+      <h2>Reporting officer's remarks</h2>
+      <form method="post" action="{{ url_for('exits.act', rid=r.id) }}">
+        {{ csrf() }}
+        <div class="field"><label for="rm">Remarks for HR</label><textarea id="rm" name="remarks" required maxlength="1000"
+          placeholder="Handover plan, whether an earlier or later date suits the work, anything HR should know"></textarea></div>
+        <div class="actions"><button class="btn" name="action" value="forward">Forward to HR</button></div>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if acting and r.status == 'WITH_HR' %}
+    <section class="panel">
+      <h2>Accept resignation</h2>
+      <form method="post" action="{{ url_for('exits.act', rid=r.id) }}">
+        {{ csrf() }}
+        <div class="form-grid">
+          <div class="field"><label for="al">Last working day</label>
+            <input type="date" id="al" name="accepted_lwd" required value="{{ r.proposed_lwd }}" min="{{ r.submitted_at[:10] }}"></div>
+          <div class="field full"><label for="hr">Remarks (shown to the employee)</label><textarea id="hr" name="remarks" maxlength="1000"></textarea></div>
+        </div>
+        <div class="actions"><button class="btn good" name="action" value="accept" data-confirm="Accept this resignation?">Accept</button></div>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if own and r.status in ('WITH_OFFICER', 'WITH_HR') %}
+    <section class="panel">
+      <h2>Withdraw resignation</h2>
+      <form method="post" action="{{ url_for('exits.act', rid=r.id) }}">
+        {{ csrf() }}
+        <div class="field"><label for="wr">Remarks (optional)</label><input type="text" id="wr" name="remarks" maxlength="1000"></div>
+        <div class="actions"><button class="btn danger" name="action" value="withdraw" data-confirm="Withdraw your resignation?">Withdraw</button></div>
+      </form>
+    </section>
+    {% endif %}
+    {% if own and r.status == 'ACCEPTED' %}
+    <div class="notice">Your resignation has been accepted. To change your last working day or stay on, please speak to HR.</div>
+    {% endif %}
+  </div>
+
+  <div>
+    <section class="panel">
+      <h2>Progress</h2>
+      <ul class="timeline">
+        <li><strong>Submitted</strong><div class="small">{{ r.employee_name }}, {{ r.submitted_at|dt }}</div></li>
+        {% if r.officer_at %}<li><strong>Forwarded to HR</strong><div class="small">{{ r.officer_name }}, {{ r.officer_at|dt }}</div>
+          <div class="small">“{{ r.officer_remarks }}”</div></li>
+        {% elif r.status == 'WITH_OFFICER' %}<li><strong>With reporting officer</strong><div class="small muted">{{ r.officer_name or 'Reporting officer' }}</div></li>{% endif %}
+        {% if r.accepted_at %}<li><strong>Accepted</strong><div class="small">{{ r.accepted_by_name }}, {{ r.accepted_at|dt }}</div>
+          {% if r.hr_remarks %}<div class="small">“{{ r.hr_remarks }}”</div>{% endif %}</li>
+        {% elif r.status == 'WITH_HR' %}<li><strong>With HR</strong><div class="small muted">Awaiting acceptance</div></li>{% endif %}
+        {% if r.relieved_at %}<li><strong>Relieved</strong><div class="small">{{ r.relieved_by_name }}, {{ r.relieved_at|dt }}</div></li>{% endif %}
+        {% if r.status in ('WITHDRAWN', 'REVOKED') %}<li><strong>{{ labels[r.status] }}</strong><div class="small">{{ r.closed_by_name }}, {{ r.closed_at|dt }}</div>
+          {% if r.closed_remarks %}<div class="small">“{{ r.closed_remarks }}”</div>{% endif %}</li>{% endif %}
+      </ul>
+    </section>
+  </div>
+</div>
+
+{% if items %}
+<section class="panel" id="clearance">
+  <div class="panel-head"><h2>Exit clearance ({{ items|selectattr('done_at')|list|length }} of {{ items|length }})</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th>Status</th><th>Note</th></tr></thead>
+    <tbody>
+    {% for x in items %}
+      <tr><td>{{ x.item }}</td>
+        <td>{% if x.done_at %}<span class="badge APPROVED">Done</span><div class="muted small">{{ x.done_by_name }}, {{ x.done_at|dt }}</div>{% else %}<span class="badge PENDING">Open</span>{% endif %}</td>
+        {% if acting and r.status == 'ACCEPTED' %}
+        <td><form method="post" action="{{ url_for('exits.clearance', rid=r.id, seq=x.seq) }}" class="inline-form">
+          {{ csrf() }}<input type="text" name="note" maxlength="300" value="{{ x.note or '' }}" aria-label="Note for {{ x.item }}">
+          {% if x.done_at %}<button class="btn secondary small" name="done" value="0">Reopen</button>
+          {% else %}<button class="btn small" name="done" value="1">Mark done</button>{% endif %}</form></td>
+        {% else %}<td class="small">{{ x.note or '' }}</td>{% endif %}</tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if acting and r.status == 'ACCEPTED' %}
+<div class="grid grid-2">
+<section class="panel">
+  <h2>Relieve employee</h2>
+  <p class="small muted">Closes {{ r.employee_name }}'s login and marks them inactive. Their records stay in the portal.</p>
+  {% if reportees %}<div class="notice">{{ reportees|length }} staff report to {{ r.employee_name }}: {{ reportees|map(attribute='full_name')|join(', ') }}. Assign them a new reporting officer under Users.</div>{% endif %}
+  {% if blockers %}
+    <ul class="small">{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+  {% else %}
+  <form method="post" action="{{ url_for('exits.act', rid=r.id) }}">
+    {{ csrf() }}
+    <div class="field"><label for="rr">Remarks (optional)</label><input type="text" id="rr" name="remarks" maxlength="1000"></div>
+    <div class="actions"><button class="btn danger" name="action" value="relieve" data-confirm="Relieve {{ r.employee_name }} and close their login?">Relieve</button></div>
+  </form>
+  {% endif %}
+</section>
+<section class="panel">
+  <h2>Revoke acceptance</h2>
+  <p class="small muted">Use this if the employee is staying on. The resignation is closed and nothing else changes.</p>
+  <form method="post" action="{{ url_for('exits.act', rid=r.id) }}">
+    {{ csrf() }}
+    <div class="field"><label for="vr">Remarks</label><input type="text" id="vr" name="remarks" required maxlength="1000"></div>
+    <div class="actions"><button class="btn secondary" name="action" value="revoke" data-confirm="Revoke the acceptance of this resignation?">Revoke</button></div>
+  </form>
+</section>
+</div>
+{% endif %}
+{% endblock %}

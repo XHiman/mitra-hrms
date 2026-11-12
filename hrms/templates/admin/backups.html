@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Backups{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Database backups</h1>
+  <p>Consistent online snapshots. Schedule <span class="code">flask --app run backup-db</span> daily (see README) and copy backups off the server.</p></div>
+  <form method="post" action="{{ url_for('admin.backup_create') }}">{{ csrf() }}<button class="btn" type="submit">Create backup now</button></form></div>
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>File</th><th>Created</th><th class="num">Size (KB)</th><th></th></tr></thead>
+    <tbody>
+    {% for f in files %}<tr><td class="code">{{ f.name }}</td><td>{{ f.when }}</td><td class="num">{{ f.size_kb }}</td>
+      <td class="right"><a href="{{ url_for('admin.backup_download', name=f.name) }}">Download</a></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No backups yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted small">Backups contain personal data. Store them encrypted and restrict access. Downloads are audit-logged.</p>
+</section>
+{% endblock %}

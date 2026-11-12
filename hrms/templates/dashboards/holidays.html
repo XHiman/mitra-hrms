@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Holiday list {{ year }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Holiday list {{ year }}</h1>
+  <p>Public holidays for Government of Maharashtra offices. These days are not counted as leave.</p></div>
+  <form class="inline-form" method="get">
+    <div class="field"><label for="yr">Year</label><select id="yr" name="year">
+      {% for y in years %}<option {{ 'selected' if y == year }}>{{ y }}</option>{% endfor %}</select></div>
+    <button class="btn secondary" type="submit">Show</button>
+  </form></div>
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Date</th><th>Day</th><th>Holiday</th><th>Occasion</th></tr></thead>
+    <tbody>
+    {% for h in items %}
+      <tr{% if h.row.date < today_iso %} class="past"{% endif %}><td>{{ loop.index }}</td><td class="nowrap">{{ h.row.date|date }}</td>
+        <td>{{ h.date.strftime('%A') }}{% if h.on_weekly_off %} <span class="muted small">(weekly off)</span>{% endif %}</td>
+        <td><strong>{{ h.row.name }}</strong></td><td class="small">{{ h.row.description or '' }}</td></tr>
+    {% else %}<tr><td colspan="5" class="empty">No holidays have been added for {{ year }}.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if items %}<p class="small muted mt">{{ items|length }} holidays, {{ items|selectattr('on_weekly_off')|list|length }} of which fall on a weekly off.</p>{% endif %}
+</section>
+{% endblock %}

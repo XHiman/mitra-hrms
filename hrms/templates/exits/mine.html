@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Resignation{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Resignation</h1>
+  <p>Submit your resignation here. It goes to your reporting officer and then to HR, who confirm your last working day.</p></div></div>
+
+{% if current %}
+{% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+<section class="panel">
+  <h2>Your resignation is in progress</h2>
+  <dl class="facts">
+    <dt>Status</dt><dd><span class="badge {{ current.status }}">{{ labels[current.status] }}</span></dd>
+    <dt>Submitted</dt><dd>{{ current.submitted_at|dt }}</dd>
+    <dt>Last working day</dt><dd>{% if current.accepted_lwd %}<strong>{{ current.accepted_lwd|date }}</strong> (confirmed by HR){% else %}{{ current.proposed_lwd|date }} (requested){% endif %}</dd>
+  </dl>
+  <div class="actions"><a class="btn" href="{{ url_for('exits.detail', rid=current.id) }}">Open</a></div>
+</section>
+{% else %}
+<section class="panel">
+  <h2>Submit resignation</h2>
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  <p class="muted small">
+    {% if notice %}The notice period is {{ notice }} days. If you ask for an earlier last working day, HR will decide.
+    {% else %}No notice period has been set in the portal; HR will confirm your last working day.{% endif %}
+    {% if officer %}Your reporting officer will see it first.{% else %}It will go directly to HR.{% endif %}
+    You can withdraw it until HR accepts it.</p>
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field"><label for="rc">Reason for leaving</label>
+        <select id="rc" name="reason_category" required>
+          <option value="">— Select —</option>
+          {% for r in reasons %}<option {{ 'selected' if form.get('reason_category') == r }}>{{ r }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="lwd">Requested last working day</label>
+        <input type="date" id="lwd" name="proposed_lwd" required min="{{ today }}" value="{{ form.get('proposed_lwd', '') }}"></div>
+      <div class="field full"><label for="rs">Resignation letter / details</label>
+        <textarea id="rs" name="reason" required maxlength="2000" rows="6">{{ form.get('reason', '') }}</textarea></div>
+      <div class="field full"><label class="check"><input type="checkbox" name="confirm" value="1" required> I wish to resign from MITRA.</label></div>
+    </div>
+    <div class="actions"><button class="btn danger" type="submit" data-confirm="Submit your resignation?">Submit resignation</button></div>
+  </form>
+</section>
+{% endif %}
+
+{% if history %}
+<section class="panel">
+  <h2>History</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Submitted</th><th>Reason</th><th>Last working day</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for r in history %}
+      <tr><td><a href="{{ url_for('exits.detail', rid=r.id) }}">{{ r.id }}</a></td><td class="nowrap">{{ r.submitted_at|dt }}</td>
+        <td>{{ r.reason_category }}</td><td class="nowrap">{{ (r.accepted_lwd or r.proposed_lwd)|date }}</td>
+        <td><span class="badge {{ r.status }}">{{ labels[r.status] }}</span></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

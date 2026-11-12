@@ -1,0 +1,59 @@
+{#- Reporting line and projects for one person. Editable when ro_choices is set (people.manage, not own record). -#}
+{% from "macros.html" import csrf %}
+{% set edit = ro_choices is defined %}
+<section class="panel" id="people">
+  <div class="panel-head"><h2>Reporting line &amp; projects</h2>
+    {% if not edit and own %}<span class="small muted">Set by HR. Ask HR if anything is wrong.</span>{% endif %}</div>
+
+  <h3>Reporting officer</h3>
+  {% if edit %}
+  <form method="post" action="{{ url_for('dashboards.set_reporting_officer', employee_id=emp.id) }}" class="inline-form">{{ csrf() }}
+    <div class="field grow"><label class="sr-only" for="ro-sel">Reporting officer</label>
+      <select id="ro-sel" name="reporting_officer_id"><option value="">— None (HR handles approvals) —</option>
+        {% for p in ro_choices %}<option value="{{ p.id }}" {{ 'selected' if p.id == emp.reporting_officer_id }}>{{ p.full_name }}{% if p.designation %}, {{ p.designation }}{% endif %}</option>{% endfor %}
+      </select></div>
+    <button class="btn secondary" type="submit">Save</button>
+  </form>
+  <p class="small muted">Leave and comp-off requests from {{ emp.full_name }} go to this person.</p>
+  {% else %}
+  <p>{{ emp.reporting_officer or 'None recorded (HR handles approvals)' }}</p>
+  {% endif %}
+
+  <h3 class="mt">People reporting to {{ 'you' if own else emp.full_name.split(' ')[0] }} ({{ team|length }})</h3>
+  {% if team %}
+  <ul class="tasklist">{% for t in team %}
+    <li><span><strong>{{ t.full_name }}</strong> <span class="muted small">{{ t.emp_code }}{% if t.designation %}, {{ t.designation }}{% endif %}</span></span>
+      {% if edit %}<form method="post" action="{{ url_for('dashboards.team_remove', employee_id=emp.id, member_id=t.id) }}">{{ csrf() }}
+        <button class="btn link small" type="submit" data-confirm="{{ t.full_name }} will no longer report to {{ emp.full_name }} and will have no reporting officer until one is set. Continue?">Remove</button></form>{% endif %}</li>
+  {% endfor %}</ul>
+  {% else %}<p class="muted">Nobody reports to {{ 'you' if own else 'this person' }}.</p>{% endif %}
+  {% if edit and member_choices %}
+  <form method="post" action="{{ url_for('dashboards.team_add', employee_id=emp.id) }}" class="inline-form mt">{{ csrf() }}
+    <div class="field grow"><label class="sr-only" for="tm-sel">Add a team member</label>
+      <select id="tm-sel" name="member_id" required><option value="">— Add a person who reports here —</option>
+        {% for p in member_choices %}<option value="{{ p.id }}">{{ p.full_name }}{% if p.designation %}, {{ p.designation }}{% endif %}</option>{% endfor %}
+      </select></div>
+    <button class="btn secondary" type="submit">Add</button>
+  </form>
+  {% endif %}
+
+  <h3 class="mt">Projects ({{ my_projects|length }})</h3>
+  {% if my_projects %}
+  <ul class="tasklist">{% for p in my_projects %}
+    <li><span><strong>{{ p.name }}</strong>{% if p.code %} <span class="muted small">{{ p.code }}</span>{% endif %}
+      {% if p.status != 'ACTIVE' %}<span class="badge neutral">{{ 'On hold' if p.status == 'ON_HOLD' else 'Completed' }}</span>{% endif %}</span>
+      {% if edit %}<form method="post" action="{{ url_for('dashboards.project_remove', employee_id=emp.id, project_id=p.id) }}">{{ csrf() }}
+        <button class="btn link small" type="submit">Remove</button></form>{% endif %}</li>
+  {% endfor %}</ul>
+  {% else %}<p class="muted">Not assigned to any project yet.</p>{% endif %}
+  {% if edit and project_choices %}
+  <form method="post" action="{{ url_for('dashboards.project_add', employee_id=emp.id) }}" class="inline-form mt">{{ csrf() }}
+    <div class="field grow"><label class="sr-only" for="pj-sel">Add a project</label>
+      <select id="pj-sel" name="project_id" required><option value="">— Add a project —</option>
+        {% for p in project_choices %}<option value="{{ p.id }}">{{ p.name }}{% if p.code %} ({{ p.code }}){% endif %}</option>{% endfor %}
+      </select></div>
+    <button class="btn secondary" type="submit">Add</button>
+  </form>
+  {% endif %}
+  <p class="small muted mt">Assigned projects are listed first in the timesheet. Time can still be booked on any active project.</p>
+</section>

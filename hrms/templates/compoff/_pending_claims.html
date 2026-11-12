@@ -1,0 +1,34 @@
+{% from "macros.html" import csrf %}
+<div class="table-wrap"><table>
+  <thead><tr>
+    <th>Employee</th><th>Designation / Dept.</th><th>Date worked</th><th class="num">Days</th><th>Work done</th>
+    <th>Claimed on</th><th>Action</th>
+  </tr></thead>
+  <tbody>
+  {% for c in claims %}
+    <tr>
+      <td><strong>{{ c.employee_name }}</strong><div class="muted small">{{ c.emp_code }}</div>
+        <a class="small" href="{{ url_for('dashboards.employee_history', employee_id=c.employee_id) }}">Leave history</a></td>
+      <td>{{ c.designation or '—' }}<div class="muted small">{{ c.department or '—' }}</div></td>
+      <td class="nowrap">{{ c.worked_date|date }}</td>
+      <td class="num">{{ c.days|days }}</td>
+      <td class="small">{{ c.work_details|truncate(120) }}
+        {% if c.approver_user_id != current_user.id %}<div class="muted small">Assigned by {{ c.approver_name }} (unavailable) – routed to HR</div>{% endif %}</td>
+      <td class="nowrap">{{ c.submitted_at|dt }}</td>
+      <td>
+        <form method="post" action="{{ url_for('compoff.decide', claim_id=c.id) }}">
+          {{ csrf() }}
+          <input type="hidden" name="return_to" value="{{ return_to }}">
+          <input type="text" name="remarks" maxlength="1000" placeholder="Remarks (required to reject)" aria-label="Remarks">
+          <div class="actions mt">
+            <button class="btn good small" name="decision" value="approve" data-confirm="Confirm the work was done and credit comp-off?">Approve</button>
+            <button class="btn danger small" name="decision" value="reject" data-confirm="Reject this comp-off claim?">Reject</button>
+          </div>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="empty">No comp-off claims are awaiting your action.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>

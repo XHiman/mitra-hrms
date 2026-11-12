@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Leave configuration{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Leave configuration</h1>
+  <p>Leave types, entitlements and rules must reflect MITRA's approved HR policy. Nothing is pre-filled by the system.</p></div>
+  <a class="btn" href="{{ url_for('admin.leave_type_edit') }}">Add leave type</a></div>
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Leave type</th><th class="num">Annual entitlement</th><th>Per-application limits</th><th>Document</th><th>Day counting</th><th>Eligibility</th><th>Workflow</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for t in rows %}
+      <tr>
+        <td><a href="{{ url_for('admin.leave_type_edit', type_id=t.id) }}"><strong>{{ t.name }}</strong></a><div class="muted small">{{ t.code }}</div></td>
+        <td class="num">{% if t.credit_based %}<span class="muted small">Earned via comp-off claims</span>{% elif not t.balance_tracked %}<span class="muted">not tracked</span>{% elif t.annual_entitlement is none %}<span class="badge warning">Not configured</span>{% else %}{{ t.annual_entitlement|days }}{% if t.accrual_per_month %}<div class="muted small">{{ t.accrual_per_month|days }} per month</div>{% endif %}{% endif %}</td>
+        <td class="small">{% if t.min_days is not none %}min {{ t.min_days|days }} {% endif %}{% if t.max_days is not none %}max {{ t.max_days|days }}{% endif %}{% if t.min_days is none and t.max_days is none %}—{% endif %}
+          {% if t.min_notice_days %}<div>{{ t.min_notice_days }} day(s) notice</div>{% endif %}{% if t.allow_backdated %}<div>backdating allowed</div>{% endif %}</td>
+        <td class="small">{% if t.requires_document %}Always{% elif t.document_after_days is not none %}Above {{ t.document_after_days|days }} day(s){% else %}Optional{% endif %}</td>
+        <td class="small">{{ 'Calendar days' if t.count_non_working_days else 'Working days' }}</td>
+        <td class="small">{{ t.eligible_employment_types|replace(',', ', ') if t.eligible_employment_types else 'All' }}</td>
+        <td class="small">{{ t.workflow_name or 'Default' }}</td>
+        <td>{% if t.is_active %}<span class="badge good">Active</span>{% else %}<span class="badge neutral">Inactive</span>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="empty">No leave types configured.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="panel" id="holidays">
+  <h2>Holiday calendar</h2>
+  <p class="muted small">Holidays (and weekly offs set in System settings) are excluded when counting working days and are shown on every employee's calendar.</p>
+  {% if official_years %}
+  <form method="post" action="{{ url_for('admin.holiday_load') }}" class="inline-form">{{ csrf() }}
+    <div class="field"><label for="oy">Government of Maharashtra list</label><select id="oy" name="year">
+      {% for y in official_years %}<option>{{ y }}</option>{% endfor %}</select></div>
+    <button class="btn secondary" type="submit">Load official holidays</button>
+  </form>
+  <p class="muted small">Adds the public holidays notified by the General Administration Department for that year. Existing entries on the same dates are updated; nothing is removed.</p>
+  {% endif %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Holiday</th><th>Occasion</th><th></th></tr></thead>
+    <tbody>
+    {% for h in holidays %}
+      <tr><td class="nowrap">{{ h.date|date }}</td><td>{{ h.name }}</td><td class="small">{{ h.description or '' }}</td>
+        <td class="right"><form method="post" action="{{ url_for('admin.holiday_delete', holiday_id=h.id) }}">{{ csrf() }}<button class="btn link" type="submit" data-confirm="Remove this holiday?">Remove</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">No holidays added.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <form method="post" action="{{ url_for('admin.holiday_add') }}" class="inline-form mt">{{ csrf() }}
+    <div class="field"><label for="hd">Date</label><input type="date" id="hd" name="date" required></div>
+    <div class="field"><label for="hn">Name</label><input type="text" id="hn" name="name" required maxlength="80"></div>
+    <div class="field"><label for="hd2">Occasion (optional)</label><input type="text" id="hd2" name="description" maxlength="300"></div>
+    <button class="btn" type="submit">Add holiday</button>
+  </form>
+</section>
+{% endblock %}

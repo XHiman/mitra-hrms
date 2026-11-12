@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Timesheet {{ mv.first.strftime('%B %Y') }}{% endblock %}
+{% block content %}
+{% set s = mv.summary %}
+{% set base_ep = 'timesheet.month' if own else 'timesheet.view' %}
+{% set who = {} if own else {'employee_id': emp.id} %}
+<div class="page-head"><div>
+  <h1>{{ mv.first.strftime('%B %Y') }}: total time booked {{ s.booked|days }} of {{ s.ideal|days }} h</h1>
+  <p>{% if own %}My timesheet. Click a day to book hours beside the calendar; approved paid leave is filled in for you. Submit each week when it is complete.{% else %}{{ emp.full_name }}{% if emp.designation %}, {{ emp.designation }}{% endif %} ({{ emp.emp_code }}). Read only.{% endif %}</p></div>
+  <div class="cal-nav">
+    <a class="btn secondary small" href="{{ url_for(base_ep, month=prev, **who) }}">‹ Previous month</a>
+    {% if nxt %}<a class="btn secondary small" href="{{ url_for(base_ep, **who) }}">This month</a>
+    <a class="btn secondary small" href="{{ url_for(base_ep, month=nxt, **who) }}">Next month ›</a>{% endif %}
+    <a class="btn secondary small" href="{{ url_for('timesheet.summary', year=mv.first.year) if own else url_for('timesheet.view', employee_id=emp.id, year=mv.first.year) }}">Month-wise summary</a>
+    {% if not own %}<a class="btn secondary small" href="{{ url_for('timesheet.team') }}">Back to team</a>{% endif %}
+  </div></div>
+
+<section class="ts-summary" aria-label="Monthly summary">
+  <div><span class="l">Ideal time ({{ mv.first.strftime('%B') }})</span><span class="v">{{ s.ideal|days }} h</span>
+    <span class="sub">{{ s.working_days }} days × {{ daily }} h</span></div>
+  <div><span class="l">Total time booked</span><span class="v">{{ s.booked|days }} h</span>
+    <span class="sub">{{ s.project|days }} h projects + {{ s.leave_hours|days }} h paid leave</span></div>
+  {% if s.surplus %}
+  <div class="surplus"><span class="l">Surplus</span><span class="v">{{ s.surplus|days }} h</span><span class="sub">booked above the ideal time</span></div>
+  {% else %}
+  <div class="{{ 'shortfall' if s.shortfall else 'even' }}"><span class="l">Shortfall</span><span class="v">{{ s.shortfall|days }} h</span>
+    <span class="sub">ideal time minus time booked</span></div>
+  {% endif %}
+  <div><span class="l">Leave</span><span class="v">{{ s.leave_days|days }} day{{ 's' if s.leave_days != 1 }}</span>
+    <span class="sub">paid{% if s.unpaid_days %}; {{ s.unpaid_days|days }} unpaid{% endif %}</span></div>
+  <div class="{{ 'shortfall' if s.behind else '' }}"><span class="l">Up to today</span><span class="v">{{ s.booked_so_far|days }} / {{ s.ideal_so_far|days }} h</span>
+    <span class="sub">{{ (s.behind|days ~ ' h behind') if s.behind else 'on track' }}</span></div>
+</section>
+{% if s.ideal %}
+{% set pw = (100 * s.project / s.ideal)|round|int %}{% set lw = (100 * s.leave_hours / s.ideal)|round|int %}
+<div class="ts-bar" role="img" aria-label="{{ s.project|days }} hours of projects and {{ s.leave_hours|days }} hours of paid leave against {{ s.ideal|days }} ideal">
+  <span class="p" data-pct="{{ [pw, 100]|min }}"></span><span class="lv" data-pct="{{ [lw, 100 - [pw, 100]|min]|min }}"></span>
+</div>
+{% endif %}
+<p class="ts-counts small">
+  <span><strong>{{ s.complete }}</strong> complete</span>
+  <span><strong class="{{ 'due-soon' if s.short }}">{{ s.short }}</strong> short</span>
+  <span><strong class="{{ 'due-soon' if s.pending }}">{{ s.pending }}</strong> not booked</span>
+  <span><strong>{{ s.holidays }}</strong> holiday{{ 's' if s.holidays != 1 }}</span>
+  {% if s.weekend_hours %}<span><strong>{{ s.weekend_hours|days }} h</strong> on weekly offs</span>{% endif %}
+</p>
+
+<div class="ts-split{% if editor %} with-editor{% endif %}">
+<section class="panel">
+  <div class="tscal-wrap">
+  <table class="tscal">
+    <thead><tr>{% for dn in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<th scope="col">{{ dn }}</th>{% endfor %}<th scope="col">Week</th></tr></thead>
+    <tbody>
+    {% for w in mv.weeks %}
+      <tr>
+      {% for d in w.days %}
+        {% if not d.in_month %}
+          <td class="out"><span class="num">{{ d.date.day }}</span></td>
+        {% else %}
+          {% set clickable = own and not d.future and d.kind not in ('not_eligible', 'after_contract') %}
+          <td class="st-{{ d.status }}{% if d.iso == today_iso %} today{% endif %}{% if editor and editor.d.isoformat() == d.iso %} sel{% endif %}" id="d{{ d.iso }}">
+            {% if clickable %}<a class="cell" href="{{ url_for('timesheet.month', day=d.iso) }}#editor" aria-label="{{ d.date.strftime('%A %d %B') }}: book hours">{% else %}<div class="cell">{% endif %}
+              <span class="num">{{ d.date.day }}</span>
+              {% if d.status == 'holiday' %}<span class="tag">{{ d.holiday }}</span>
+              {% elif d.status == 'leave' %}<span class="tag">Leave</span><span class="hrs">{{ d.leave.name }}</span>
+              {% elif d.status == 'unpaid' %}<span class="tag">Unpaid leave</span><span class="hrs">0 of {{ d.ideal|days }} h</span>
+              {% elif d.status == 'off' %}<span class="tag">Weekly off</span>
+              {% elif d.status == 'not-eligible' %}<span class="tag">{{ 'Before joining' if d.note == 'Before date of joining' else 'Not required' }}</span>
+              {% elif d.status == 'after-contract' %}<span class="tag">Contract ended</span>
+              {% elif d.status == 'upcoming' %}<span class="hrs muted">{{ d.ideal|days }} h ideal</span>
+              {% elif d.status == 'pending' %}<span class="tag">Not booked</span><span class="hrs">0 of {{ d.ideal|days }} h</span>
+              {% elif d.status == 'short' %}<span class="tag">Short {{ d.shortfall|days }} h</span><span class="hrs">{{ d.booked|days }} of {{ d.ideal|days }} h</span>
+              {% else %}<span class="tag">Complete</span><span class="hrs">{{ d.booked|days }} h</span>{% endif %}
+              {% if d.holiday and d.status != 'holiday' %}<span class="hrs">{{ d.holiday }}</span>{% endif %}
+              {% if d.leave and d.leave.half %}<span class="hrs">½ {{ d.leave.name }}{% if not d.leave.paid %} (unpaid){% endif %}</span>{% endif %}
+              {% if d.total and d.status in ('off', 'holiday', 'leave', 'unpaid') %}<span class="hrs">{{ d.total|days }} h booked</span>{% endif %}
+              {% if d.status in ('short', 'pending', 'complete', 'unpaid') or d.total %}<span class="ph">{{ d.booked|days }}/{{ d.ideal|days }}</span>
+              {% elif d.status == 'holiday' %}<span class="ph">Hol.</span>{% elif d.status == 'leave' %}<span class="ph">Leave</span>{% endif %}
+            {% if clickable %}</a>{% else %}</div>{% endif %}
+          </td>
+        {% endif %}
+      {% endfor %}
+        {% set wk = w.days[0].date %}
+        <td class="wk">
+          {% if w.sheet and w.sheet.status == 'SUBMITTED' %}<span class="badge APPROVED">Submitted</span>
+          {% elif w.sheet and w.total %}<span class="badge PENDING">Draft</span>
+          {% elif wk <= mv.this_week %}<span class="badge neutral">Not started</span>{% endif %}
+          {% if w.total or w.leave_hours or wk <= mv.this_week %}<span class="small">{{ (w.total + w.leave_hours)|days }} h</span>{% endif %}
+          {% if own and w.sheet and w.sheet.status != 'SUBMITTED' and w.total and wk <= mv.this_week %}
+            <form method="post" action="{{ url_for('timesheet.week_submit') }}">{{ csrf() }}
+              <input type="hidden" name="week" value="{{ wk.isoformat() }}"><input type="hidden" name="month" value="{{ mv.first.strftime('%Y-%m') }}">
+              <button class="btn small" type="submit" data-confirm="Submit the week of {{ wk.strftime('%d %b') }} ({{ w.total|days }} project hours)?">Submit</button></form>
+          {% endif %}
+          {% if wk <= mv.this_week %}<a class="small" href="{{ url_for('timesheet.week', week=wk.isoformat()) if own else url_for('timesheet.view', employee_id=emp.id, week=wk.isoformat()) }}">Week</a>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="ts-legend small">
+    <span class="lg st-complete">Complete</span><span class="lg st-short">Short</span><span class="lg st-pending">Not booked</span>
+    <span class="lg st-leave">Paid leave</span><span class="lg st-unpaid">Unpaid leave</span><span class="lg st-holiday">Holiday</span>
+    <span class="lg st-off">Weekly off</span><span class="lg st-upcoming">Upcoming</span>
+  </p>
+</section>
+
+{% if editor %}
+{% set e = editor %}{% set info = e.info %}{% set submitted = e.sheet and e.sheet.status == 'SUBMITTED' %}
+<section class="panel ts-editor" id="editor" aria-label="Book hours for {{ e.d.strftime('%A %d %B') }}">
+  <div class="panel-head"><h2>{{ e.d.strftime('%a') }} {{ e.d|date }}</h2>
+    <span class="cal-nav"><a class="btn secondary small" href="{{ url_for('timesheet.month', day=e.prev) }}#editor" aria-label="Previous day">‹</a>
+      {% if e.nxt %}<a class="btn secondary small" href="{{ url_for('timesheet.month', day=e.nxt) }}#editor" aria-label="Next day">›</a>{% endif %}
+      <a class="btn secondary small" href="{{ url_for('timesheet.month', month=e.d.strftime('%Y-%m')) }}" aria-label="Close">Close</a></span></div>
+  <p class="small">{% if info.note %}{{ info.note }}. {% endif %}
+    {% if info.ideal %}Ideal {{ info.ideal|days }} h: <strong>{{ info.booked|days }} h booked</strong>{% if info.leave_hours %} ({{ info.total|days }} project + {{ info.leave_hours|days }} leave){% endif %}.
+    {% else %}No ideal hours on this day; book any work done.{% endif %}
+    {% if submitted %}<span class="badge APPROVED">Week submitted</span>{% endif %}</p>
+  {% if info.leave %}
+  <div class="ts-leave small"><strong>{{ info.leave.name }}</strong>, {{ 'paid' if info.leave.paid else 'unpaid' }}{% if info.leave.half %}, {{ 'first' if info.leave.half == 'FIRST' else 'second' }} half{% endif %}:
+    {{ info.leave_hours|days }} h{% if not info.leave.paid %} (unpaid leave is not counted as booked time){% endif %}. From the approved leave; change it from the Leave page.</div>
+  {% endif %}
+  {% if e.error %}<div class="flash error" role="alert">{{ e.error }}</div>{% endif %}
+  {% if info.locked %}
+    <p class="muted">Hours cannot be booked for this date.</p>
+  {% elif submitted %}
+    <table>
+      <thead><tr><th>Project</th><th class="num">Hours</th><th>Task done</th></tr></thead>
+      <tbody>{% for x in info.entries %}<tr><td>{{ x.project }}</td><td class="num">{{ x.hours|days }}</td><td>{{ x.description }}</td></tr>
+      {% else %}<tr><td colspan="3" class="empty">No project hours on this day.</td></tr>{% endfor %}</tbody>
+    </table>
+    <form method="post" action="{{ url_for('timesheet.week_reopen') }}" class="mt">{{ csrf() }}
+      <input type="hidden" name="week" value="{{ e.week }}">
+      <input type="hidden" name="day" value="{{ e.d.isoformat() }}">
+      <button class="btn secondary" type="submit" data-confirm="Reopen this week to make changes? You will need to submit it again.">Reopen the week to correct</button>
+    </form>
+  {% else %}
+  <form method="post" action="{{ url_for('timesheet.day', day=e.d.isoformat()) }}">
+    {{ csrf() }}
+    <div class="ts-rows">
+    {% for r in info.rows %}{% set n = loop.index0 %}
+      <div class="ts-row">
+        <select name="e0_{{ n }}_project" aria-label="Project, row {{ n + 1 }}">
+          <option value="">— Project —</option>
+          {% if mine %}<optgroup label="My projects">{% for p in projects if p.id in mine %}<option value="{{ p.id }}" {{ 'selected' if r.project == p.id|string }}>{{ p.name }}{% if p.code %} ({{ p.code }}){% endif %}</option>{% endfor %}</optgroup>
+          <optgroup label="Other projects">{% for p in projects if p.id not in mine %}<option value="{{ p.id }}" {{ 'selected' if r.project == p.id|string }}>{{ p.name }}{% if p.code %} ({{ p.code }}){% endif %}</option>{% endfor %}</optgroup>
+          {% else %}{% for p in projects %}<option value="{{ p.id }}" {{ 'selected' if r.project == p.id|string }}>{{ p.name }}{% if p.code %} ({{ p.code }}){% endif %}</option>{% endfor %}{% endif %}
+          {% if r.project and r.project not in projects|map(attribute='id')|map('string')|list %}<option value="{{ r.project }}" selected>(closed project)</option>{% endif %}
+        </select>
+        <select name="e0_{{ n }}_hours" class="hours" aria-label="Hours, row {{ n + 1 }}">
+          <option value="">h</option>
+          {% for h in range(1, 9) %}<option value="{{ h }}" {{ 'selected' if r.hours == h|string }}>{{ h }}</option>{% endfor %}
+          {% if r.hours and r.hours not in ['1','2','3','4','5','6','7','8'] %}<option value="{{ r.hours }}" selected>{{ r.hours }} (choose 1–8)</option>{% endif %}
+        </select>
+        <input type="text" name="e0_{{ n }}_desc" maxlength="300" value="{{ r.desc }}" placeholder="{{ 'What did you work on?' if n == 0 else 'Task' }}" aria-label="Task, row {{ n + 1 }}">
+      </div>
+    {% endfor %}
+    </div>
+    <p class="small muted">8 h on one project, or split it (e.g. 4 + 4). Whole hours, 1 to 8 per row. Clear a row to remove it.</p>
+    <div class="actions">
+      <button class="btn" type="submit" name="next" value="calendar">Save</button>
+      {% if e.nxt %}<button class="btn secondary" type="submit" name="next" value="next-day">Save and next day</button>{% endif %}
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+</div>
+
+<section class="panel narrow">
+  <h2>Where the time went ({{ mv.first.strftime('%B') }})</h2>
+  <table>
+    <thead><tr><th>Project</th><th class="num">Hours</th></tr></thead>
+    <tbody>
+    {% for p, h in s.project_rows %}<tr><td>{{ p }}</td><td class="num">{{ h|days }}</td></tr>{% endfor %}
+    {% if s.leave_hours %}<tr><td>Paid leave</td><td class="num">{{ s.leave_hours|days }}</td></tr>{% endif %}
+    {% if not s.project_rows and not s.leave_hours %}<tr><td colspan="2" class="empty">No hours recorded this month yet.{% if own %} Click a day in the calendar to start.{% endif %}</td></tr>{% endif %}
+    </tbody>
+    {% if s.project_rows or s.leave_hours %}<tfoot><tr><th>Total time booked</th><th class="num">{{ s.booked|days }}</th></tr></tfoot>{% endif %}
+  </table>
+</section>
+{% endblock %}

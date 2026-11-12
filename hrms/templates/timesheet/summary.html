@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Month-wise summary {{ year }}{% endblock %}
+{% block content %}
+{% set who = {} if own else {'employee_id': emp.id} %}
+<div class="page-head"><div>
+  <h1>Month-wise summary {{ year }}{% if not own %}: {{ emp.full_name }}{% endif %}</h1>
+  <p>Total time booked = project hours + paid leave. Shortfall = ideal time − total time booked.{% if not own %} {{ emp.emp_code }}{% if emp.designation %}, {{ emp.designation }}{% endif %}. Read only.{% endif %}</p></div>
+  <div class="cal-nav">
+    <a class="btn secondary small" href="{{ url_for('timesheet.summary', year=year - 1) if own else url_for('timesheet.view', employee_id=emp.id, year=year - 1) }}">‹ {{ year - 1 }}</a>
+    {% if year < this_year %}<a class="btn secondary small" href="{{ url_for('timesheet.summary', year=year + 1) if own else url_for('timesheet.view', employee_id=emp.id, year=year + 1) }}">{{ year + 1 }} ›</a>{% endif %}
+    <a class="btn secondary small" href="{{ url_for('timesheet.month') if own else url_for('timesheet.view', employee_id=emp.id) }}">Calendar</a>
+  </div></div>
+
+<section class="ts-summary" aria-label="Year summary">
+  <div><span class="l">Ideal time ({{ year }} so far)</span><span class="v">{{ total.ideal|days }} h</span><span class="sub">{{ rows|length }} month{{ 's' if rows|length != 1 }}</span></div>
+  <div><span class="l">Total time booked</span><span class="v">{{ total.booked|days }} h</span><span class="sub">{{ total.project|days }} h projects + {{ total.leave_hours|days }} h paid leave</span></div>
+  {% if total.surplus %}<div class="surplus"><span class="l">Surplus</span><span class="v">{{ total.surplus|days }} h</span><span class="sub">above the ideal time</span></div>
+  {% else %}<div class="{{ 'shortfall' if total.shortfall else 'even' }}"><span class="l">Shortfall</span><span class="v">{{ total.shortfall|days }} h</span><span class="sub">ideal minus booked</span></div>{% endif %}
+  <div><span class="l">Leave</span><span class="v">{{ total.leave_days|days }} day{{ 's' if total.leave_days != 1 }}</span><span class="sub">paid{% if total.unpaid_days %}; {{ total.unpaid_days|days }} unpaid{% endif %}</span></div>
+</section>
+
+<section class="panel">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Month</th><th class="num">Ideal time</th><th class="num">Project hours</th><th class="num">Paid leave</th>
+      <th class="num">Total time booked</th><th class="num">Shortfall</th><th class="num">Leave days</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><strong>{{ r.month.strftime('%B') }}</strong></td>
+        <td class="num">{{ r.ideal|days }} h</td><td class="num">{{ r.project|days }}</td><td class="num">{{ r.leave_hours|days }}</td>
+        <td class="num"><strong>{{ r.booked|days }} h</strong></td>
+        <td class="num{% if r.shortfall %} due-soon{% endif %}">{% if r.surplus %}<span class="muted">+{{ r.surplus|days }}</span>{% else %}{{ r.shortfall|days }} h{% endif %}</td>
+        <td class="num">{{ r.leave_days|days }}{% if r.unpaid_days %} <span class="muted small">+{{ r.unpaid_days|days }} unpaid</span>{% endif %}</td>
+        <td><a href="{{ url_for('timesheet.month', month=r.month.strftime('%Y-%m')) if own else url_for('timesheet.view', employee_id=emp.id, month=r.month.strftime('%Y-%m')) }}">Calendar</a></td></tr>
+    {% else %}<tr><td colspan="8" class="empty">No months to show for {{ year }}.</td></tr>{% endfor %}
+    </tbody>
+    {% if rows %}<tfoot><tr><th>Total</th><th class="num">{{ total.ideal|days }} h</th><th class="num">{{ total.project|days }}</th><th class="num">{{ total.leave_hours|days }}</th>
+      <th class="num">{{ total.booked|days }} h</th><th class="num">{{ total.shortfall|days }} h</th><th class="num">{{ total.leave_days|days }}</th><th></th></tr></tfoot>{% endif %}
+  </table></div>
+</section>
+{% endblock %}

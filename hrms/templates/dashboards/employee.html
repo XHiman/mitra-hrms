@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period, calendar, balance_table, contract_state %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="page-head">
+<div><h1>Home</h1><p>{{ current_user.full_name }}. Current leave cycle: {{ cycle.label }}</p></div>
+</div>
+
+{% set lw_due = last_week.expected > 0 and not (last_week.sheet and last_week.sheet.status == 'SUBMITTED') %}
+<div class="grid grid-3">
+<section class="panel">
+  <h2>To do</h2>
+  <ul class="tasklist todo">
+    {% if lw_due %}<li class="warn"><span><strong>Last week's timesheet is not submitted</strong> ({{ last_week.total|days }} of {{ last_week.expected|days }} hours)</span>
+      <a class="btn small" href="{{ url_for('timesheet.week', week=last_week_start.isoformat()) }}">Complete it</a></li>{% endif %}
+    {% if week.short_days %}<li><span>This week: {{ week.total|days }} of {{ week.expected|days }} hours booked so far</span>
+      <a class="btn secondary small" href="{{ url_for('timesheet.month') }}">Book time</a></li>{% endif %}
+    {% if pending %}<li><span>{{ pending }} leave request{{ 's' if pending != 1 }} waiting for a decision</span>
+      <a class="btn secondary small" href="{{ url_for('leave.my_requests', status='PENDING') }}">View</a></li>{% endif %}
+    {% if unread_notifications %}<li><span>{{ unread_notifications }} unread notification{{ 's' if unread_notifications != 1 }}</span>
+      <a class="btn secondary small" href="{{ url_for('notifications.index') }}">Read</a></li>{% endif %}
+    {% if cstatus and cstatus.state == 'scheduled' and cstatus.days_left <= 30 %}<li class="warn"><span><strong>Contract renewal due {{ cstatus.renewal_due|date }}</strong></span>
+      <a class="btn secondary small" href="{{ url_for('dashboards.profile') }}">Details</a></li>{% endif %}
+    {% if not (lw_due or week.short_days or pending or unread_notifications or (cstatus and cstatus.state == 'scheduled' and cstatus.days_left <= 30)) %}
+      <li><span class="muted">You are up to date. Nothing needs your attention.</span></li>{% endif %}
+  </ul>
+</section>
+<section class="panel">
+  <h2>Quick actions</h2>
+  <div class="quick-actions">
+    {% if can('leave.apply') %}<a class="btn" href="{{ url_for('leave.apply') }}">Apply for leave</a>{% endif %}
+    <a class="btn secondary" href="{{ url_for('timesheet.month') }}">Book time</a>
+    {% if can('leave.apply') %}<a class="btn secondary" href="{{ url_for('compoff.index') }}">Claim comp-off</a>{% endif %}
+    <a class="btn secondary" href="{{ url_for('payroll.my_slips') }}">Salary slips</a>
+  </div>
+</section>
+</div>
+
+<section class="kpis" aria-label="Summary">
+  <div class="kpi"><div class="label">Leave balance</div>
+    <div class="value">{{ total_available|days if total_available is not none else '—' }}</div>
+    <div class="sub">{% if total_available is none %}Entitlements not yet configured{% else %}days available across leave types{% endif %}</div></div>
+  <div class="kpi"><div class="label">Pending requests</div><div class="value">{{ pending }}</div><div class="sub">awaiting decision</div></div>
+  <div class="kpi"><div class="label">Leave taken</div><div class="value">{{ taken|days }}</div><div class="sub">days approved and availed this year</div></div>
+  <div class="kpi"><div class="label">Upcoming leave</div><div class="value">{{ upcoming|length }}</div>
+    <div class="sub">{% if upcoming %}next: {{ upcoming[0].from_date|date }}{% else %}none scheduled{% endif %}</div></div>
+</section>
+
+<div class="grid grid-3">
+  <div>
+    <section class="panel">
+      <div class="panel-head"><h2>Leave balance</h2></div>
+      {{ balance_table(balances, cycle) }}
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Recent leave applications</h2><a href="{{ url_for('leave.my_requests') }}">View all</a></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Leave type</th><th>Period</th><th class="num">Days</th><th>Status</th><th>Remarks</th></tr></thead>
+        <tbody>
+        {% for r in recent %}
+          <tr><td><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.id }}</a></td><td>{{ r.leave_type_name }}</td>
+            <td>{{ period(r) }}</td><td class="num">{{ r.days|days }}</td>
+            <td>{{ status(r.status) }}{% if r.status == 'PENDING' and r.current_stage_name %}<div class="muted small">with {{ r.current_stage_name }}</div>{% endif %}</td>
+            <td class="small">{{ r.decision_remarks or r.cancel_reason or '' }}</td></tr>
+        {% else %}<tr><td colspan="6" class="empty">You have not applied for leave yet. <a href="{{ url_for('leave.apply') }}">Apply for leave</a></td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    </section>
+    <section class="panel">{{ calendar(cal, cal_month, prev, nxt, 'dashboards.employee', show_names=false) }}</section>
+  </div>
+  <div>
+    <section class="panel">
+      <div class="panel-head"><h2>Service details</h2></div>
+      <dl class="facts compact">
+        <dt>Date of joining</dt><dd>{{ emp.joining_date|date if emp.joining_date else 'Not recorded' }}</dd>
+        <dt>Contract ends</dt><dd>{{ emp.contract_end_date|date if emp.contract_end_date else 'Not recorded' }}</dd>
+        {% if contract %}
+          <dt>Current contract from</dt><dd>{{ contract.term_start|date }}</dd>
+          <dt>Contract</dt><dd>{{ contract_state(cstatus) }}</dd>
+        {% endif %}
+        <dt>Leave cycle</dt><dd>{{ cycle.label }}<div class="small muted">{{ 'Restarts on each contract renewal' if cycle.kind == 'CONTRACT' else 'Calendar year' }}</div></dd>
+      </dl>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>This week's timesheet</h2><a href="{{ url_for('timesheet.month') }}">Open calendar</a></div>
+      <p>{% if week.sheet and week.sheet.status == 'SUBMITTED' %}<span class="badge APPROVED">Submitted</span>{% elif week.sheet %}<span class="badge PENDING">Draft</span>{% else %}<span class="badge neutral">Not started</span>{% endif %}
+        <strong>{{ week.total|days }}</strong> of {{ week.expected|days }} hours expected so far</p>
+      {% if week.short_days %}<p class="small due-soon">Short on {% for d in week.short_days %}{{ d.date.strftime('%A') }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Upcoming approved leave</h2></div>
+      <ul class="list">
+        {% for r in upcoming[:5] %}<li><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.leave_type_name }}</a><br><span class="small muted">{{ period(r) }}, {{ r.days|days }} day(s)</span></li>
+        {% else %}<li class="muted">No upcoming leave.</li>{% endfor %}
+      </ul>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Birthdays</h2></div>
+      <ul class="list">
+        {% for b in birthdays[:8] %}
+          <li>{% if b.date == today_date %}<strong>Today: {{ b.full_name }}</strong>{% else %}<strong>{{ b.full_name }}</strong>{% endif %}
+            <div class="small muted">{{ b.date.strftime('%d %B') }}{% if b.designation %}, {{ b.designation }}{% endif %}</div></li>
+        {% else %}<li class="muted">No birthdays in the next 30 days.</li>{% endfor %}
+      </ul>
+      <p class="small muted mt">Add or hide your own birthday from <a href="{{ url_for('dashboards.profile') }}#birthday">My profile</a>.</p>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Upcoming holidays</h2><a href="{{ url_for('dashboards.holidays') }}">Full list</a></div>
+      <ul class="list">
+        {% for h in next_holidays %}<li><strong>{{ h.name }}</strong><div class="small muted">{{ h.date|date }}</div></li>
+        {% else %}<li class="muted">No holidays added yet.</li>{% endfor %}
+      </ul>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Notifications</h2><a href="{{ url_for('notifications.index') }}">View all</a></div>
+      <ul class="list">
+        {% for n in notifications %}
+          <li class="{{ 'unread' if not n.is_read }}"><strong>{{ n.title }}</strong><div class="small">{{ n.message }}</div><div class="muted small">{{ n.created_at|dt }}</div></li>
+        {% else %}<li class="muted">No notifications.</li>{% endfor %}
+      </ul>
+    </section>
+  </div>
+</div>
+{% endblock %}

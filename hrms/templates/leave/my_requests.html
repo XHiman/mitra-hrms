@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import status, period %}
+{% block title %}My leave history{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>My leave history</h1><p>Every application you have made and its current status.</p></div>
+  {% if can('leave.apply') %}<a class="btn" href="{{ url_for('leave.apply') }}">Apply for leave</a>{% endif %}</div>
+<section class="panel">
+  <form class="filters" method="get">
+    <div class="field"><label for="st">Status</label><select id="st" name="status">
+      <option value="">All</option>
+      {% for s in ['PENDING','APPROVED','REJECTED','CANCELLED'] %}<option value="{{ s }}" {{ 'selected' if status == s }}>{{ s|title }}</option>{% endfor %}
+    </select></div>
+    <button class="btn secondary" type="submit">Filter</button>
+  </form>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Leave type</th><th>Period</th><th class="num">Days</th><th>Applied on</th><th>Status</th><th>Approver remarks</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td><a href="{{ url_for('leave.detail', request_id=r.id) }}">{{ r.id }}</a></td><td>{{ r.leave_type_name }}</td>
+        <td>{{ period(r) }}</td><td class="num">{{ r.days|days }}</td><td class="nowrap small">{{ r.submitted_at|dt }}</td>
+        <td>{{ status(r.status) }}{% if r.status == 'PENDING' %}<div class="muted small">with {{ r.current_stage_name }}</div>{% endif %}</td>
+        <td class="small">{{ r.decision_remarks or '' }}{% if r.cancel_reason %}<span class="muted">Cancellation: {{ r.cancel_reason }}</span>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="7" class="empty">{% if status %}No {{ status|lower }} applications.{% else %}You have not applied for leave yet. <a href="{{ url_for('leave.apply') }}">Apply for leave</a>{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+{% set t = d.total %}
+{% macro q() -%}
+{{ url_for('analytics.index', scope=scope, period=period, view=kwargs.get('view', view), group=group or None, project=kwargs.get('project') or None) }}
+{%- endmacro %}
+<div class="page-head"><div><h1>Analytics</h1>
+  <p>{{ scope_label }}{% if group %}, {{ groups[group] }} only{% endif %}, {{ periods[period]|lower }} ({{ start|date }} to {{ end|date }}). Time booked = project hours + paid leave; figures run up to today.</p></div></div>
+
+<form method="get" class="filters panel">
+  <input type="hidden" name="view" value="{{ view }}">
+  <div class="field"><label for="an-scope">Show</label>
+    <select id="an-scope" name="scope">{% for k, label in options %}<option value="{{ k }}" {{ 'selected' if k == scope }}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="an-group">Staff</label>
+    <select id="an-group" name="group">{% for k, label in groups.items() %}<option value="{{ k }}" {{ 'selected' if k == group }}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="an-period">Period</label>
+    <select id="an-period" name="period">{% for k, label in periods.items() %}<option value="{{ k }}" {{ 'selected' if k == period }}>{{ label }}</option>{% endfor %}</select></div>
+  <button class="btn" type="submit">Show</button>
+</form>
+
+<section class="kpis six" aria-label="Summary">
+  <div class="kpi"><div class="label">Staff</div><div class="value">{{ t.staff }}</div><div class="sub">active, in this view</div></div>
+  <div class="kpi"><div class="label">Time booked</div><div class="value">{{ t.booked|days }} h</div><div class="sub">of {{ t.ideal|days }} h ideal</div></div>
+  <div class="kpi {{ 'alert' if t.util is not none and t.util < 80 }}"><div class="label">Utilisation</div><div class="value">{{ t.util if t.util is not none else '—' }}{% if t.util is not none %}%{% endif %}</div><div class="sub">booked ÷ ideal</div></div>
+  <div class="kpi"><div class="label">Shortfall</div><div class="value">{{ t.shortfall|days }} h</div><div class="sub">ideal minus booked</div></div>
+  <div class="kpi"><div class="label">Leave taken</div><div class="value">{{ t.leave_days|days }}</div><div class="sub">paid days{% if t.unpaid_days %}, {{ t.unpaid_days|days }} unpaid{% endif %}</div></div>
+  <div class="kpi"><div class="label">Weeks submitted</div><div class="value">{{ t.submission if t.submission is not none else '—' }}{% if t.submission is not none %}%{% endif %}</div><div class="sub">{{ t.weeks_submitted }} of {{ t.weeks_due }} completed weeks</div></div>
+</section>
+
+<nav class="tabs" aria-label="Views">
+  {% for k, label in views.items() %}{% if k != 'departments' or scope == 'office' %}
+  <a href="{{ q(view=k) }}" class="{{ 'here' if k == view }}">{{ label }}</a>{% endif %}{% endfor %}
+</nav>
+
+{% if not d.people %}
+<section class="panel empty-state"><h2>No staff in this view</h2><p>{% if scope == 'team' %}Nobody reports to you in the HRMS yet. Ask the administrator to set reporting officers.{% else %}No active staff match this choice.{% endif %}</p></section>
+
+{% elif view == 'people' %}
+{% set top = scale(d.people, 'ideal') if scale(d.people, 'ideal') >= scale(d.people, 'project', 'leave_hours') else scale(d.people, 'project', 'leave_hours') %}
+<section class="panel">
+  <div class="panel-head"><h2>Time booked against ideal, by person</h2><span class="small muted">Highest utilisation first</span></div>
+  <div class="hbars">
+  {% for p in d.people %}
+    <div class="hb-row">
+      <div class="hb-label">{% if can_open is none or p.emp.id in can_open %}<a href="{{ url_for('timesheet.view', employee_id=p.emp.id) }}">{{ p.emp.full_name }}</a>{% else %}{{ p.emp.full_name }}{% endif %}
+        <span class="muted small">{{ p.emp.designation or p.emp.department or '' }}</span></div>
+      <div class="hb-track" role="img" aria-label="{{ p.emp.full_name }}: {{ p.project|days }} h projects, {{ p.leave_hours|days }} h paid leave, {{ p.shortfall|days }} h short of {{ p.ideal|days }} h">
+        <span class="hb c-proj" data-pct="{{ 100 * p.project / top }}"></span><span class="hb c-leave" data-pct="{{ 100 * p.leave_hours / top }}"></span><span class="hb c-short" data-pct="{{ 100 * p.shortfall / top }}"></span></div>
+      <div class="hb-val">{{ p.booked|days }} / {{ p.ideal|days }} h <strong class="{{ 'due-soon' if p.util is not none and p.util < 80 }}">{{ p.util if p.util is not none else '—' }}{% if p.util is not none %}%{% endif %}</strong></div>
+    </div>
+  {% endfor %}
+  </div>
+  <p class="hb-legend small"><span><span class="key c-proj"></span>Project hours</span> <span><span class="key c-leave"></span>Paid leave</span> <span><span class="key c-short"></span>Shortfall</span></p>
+  <details class="mt"><summary>Show as a table</summary>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Department</th><th class="num">Ideal</th><th class="num">Projects</th><th class="num">Paid leave</th><th class="num">Booked</th><th class="num">Shortfall</th><th class="num">Utilisation</th><th class="num">Weeks submitted</th></tr></thead>
+      <tbody>{% for p in d.people %}<tr><td>{{ p.emp.full_name }} <span class="muted small">{{ p.emp.emp_code }}</span></td><td>{{ p.emp.department or '—' }}</td>
+        <td class="num">{{ p.ideal|days }}</td><td class="num">{{ p.project|days }}</td><td class="num">{{ p.leave_hours|days }}</td><td class="num">{{ p.booked|days }}</td>
+        <td class="num">{{ p.shortfall|days }}</td><td class="num">{{ p.util if p.util is not none else '—' }}{% if p.util is not none %}%{% endif %}</td><td class="num">{{ p.weeks_submitted }} / {{ p.weeks_due }}</td></tr>{% endfor %}</tbody>
+    </table></div></details>
+</section>
+
+{% elif view == 'projects' %}
+<section class="panel">
+  <div class="panel-head"><h2>Hours by project</h2><span class="small muted">Click a project to see who worked on it</span></div>
+  {% if d.project_rows %}
+  {% set top = scale(d.project_rows, 'hours') %}{% set all_hours = d.project_rows|sum(attribute='hours') %}
+  <div class="hbars">
+  {% for r in d.project_rows %}
+    <div class="hb-row{% if project and project.id == r.id %} picked{% endif %}">
+      <div class="hb-label"><a href="{{ q(project=r.id) }}">{{ r.name }}</a><span class="muted small">{{ r.people|length }} {{ 'person' if r.people|length == 1 else 'people' }}</span></div>
+      <div class="hb-track" role="img" aria-label="{{ r.name }}: {{ r.hours|days }} hours"><span class="hb c-proj" data-pct="{{ 100 * r.hours / top }}"></span></div>
+      <div class="hb-val">{{ r.hours|days }} h <strong>{{ (100 * r.hours / all_hours)|round|int }}%</strong></div>
+    </div>
+  {% endfor %}
+  </div>
+  {% else %}<p class="empty">No project hours booked in this period.</p>{% endif %}
+</section>
+{% if project %}
+<section class="panel">
+  <div class="panel-head"><h2>{{ project.name }}: hours by person</h2><a class="small" href="{{ q() }}">Clear</a></div>
+  {% set rows = project.people|dictsort(by='value', reverse=true) %}{% set top = rows[0][1] if rows else 1 %}
+  <div class="hbars">
+  {% for emp_id, hours in rows %}{% set p = people_by_id[emp_id] %}
+    <div class="hb-row"><div class="hb-label">{{ p.emp.full_name }}<span class="muted small">{{ p.emp.department or '' }}</span></div>
+      <div class="hb-track" role="img" aria-label="{{ p.emp.full_name }}: {{ hours|days }} hours"><span class="hb c-proj" data-pct="{{ 100 * hours / top }}"></span></div>
+      <div class="hb-val">{{ hours|days }} h <strong>{{ (100 * hours / project.hours)|round|int }}%</strong></div></div>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% elif view == 'departments' %}
+<section class="panel">
+  <div class="panel-head"><h2>Utilisation by department</h2><span class="small muted">Time booked ÷ ideal time</span></div>
+  <div class="hbars">
+  {% for r in d.dept_rows %}
+    <div class="hb-row"><div class="hb-label" title="{{ r.name }}">{{ r.name }}<span class="muted small">{{ r.staff }} staff</span></div>
+      <div class="hb-track" role="img" aria-label="{{ r.name }}: {{ r.util if r.util is not none else 'no' }} percent"><span class="hb c-proj" data-pct="{{ r.util or 0 }}"></span></div>
+      <div class="hb-val">{{ r.booked|days }} / {{ r.ideal|days }} h <strong class="{{ 'due-soon' if r.util is not none and r.util < 80 }}">{{ r.util if r.util is not none else '—' }}{% if r.util is not none %}%{% endif %}</strong></div></div>
+  {% endfor %}
+  </div>
+  <details class="mt"><summary>Show as a table</summary>
+    <div class="table-wrap"><table><thead><tr><th>Department</th><th class="num">Staff</th><th class="num">Ideal</th><th class="num">Projects</th><th class="num">Paid leave</th><th class="num">Leave days</th><th class="num">Utilisation</th></tr></thead>
+      <tbody>{% for r in d.dept_rows %}<tr><td>{{ r.name }}</td><td class="num">{{ r.staff }}</td><td class="num">{{ r.ideal|days }}</td><td class="num">{{ r.project|days }}</td><td class="num">{{ r.leave_hours|days }}</td><td class="num">{{ r.leave_days|days }}</td><td class="num">{{ r.util if r.util is not none else '—' }}{% if r.util is not none %}%{% endif %}</td></tr>{% endfor %}</tbody></table></div></details>
+</section>
+
+{% elif view == 'leave' %}
+<div class="grid grid-2">
+<section class="panel">
+  <h2>Leave days by type</h2>
+  {% if d.leave_rows %}{% set top = scale(d.leave_rows, 'days') %}
+  <div class="hbars">{% for r in d.leave_rows %}
+    <div class="hb-row"><div class="hb-label">{{ r.name }}<span class="muted small">{{ r.people }} {{ 'person' if r.people == 1 else 'people' }}</span></div>
+      <div class="hb-track" role="img" aria-label="{{ r.name }}: {{ r.days|days }} days"><span class="hb c-leave" data-pct="{{ 100 * r.days / top }}"></span></div>
+      <div class="hb-val">{{ r.days|days }} days</div></div>{% endfor %}</div>
+  {% else %}<p class="empty">No approved leave in this period.</p>{% endif %}
+</section>
+<section class="panel">
+  <h2>Leave days by person</h2>
+  {% set takers = d.people|selectattr('leave_days')|list + d.people|rejectattr('leave_days')|selectattr('unpaid_days')|list %}
+  {% if takers %}{% set top = scale(takers, 'leave_days', 'unpaid_days') %}
+  <div class="hbars">{% for p in takers|sort(attribute='leave_days', reverse=true) %}
+    <div class="hb-row"><div class="hb-label">{{ p.emp.full_name }}<span class="muted small">{{ p.emp.department or '' }}</span></div>
+      <div class="hb-track" role="img" aria-label="{{ p.emp.full_name }}: {{ p.leave_days|days }} paid and {{ p.unpaid_days|days }} unpaid days"><span class="hb c-leave" data-pct="{{ 100 * p.leave_days / top }}"></span><span class="hb c-short" data-pct="{{ 100 * p.unpaid_days / top }}"></span></div>
+      <div class="hb-val">{{ (p.leave_days + p.unpaid_days)|days }} days</div></div>{% endfor %}</div>
+  <p class="hb-legend small"><span><span class="key c-leave"></span>Paid</span> <span><span class="key c-short"></span>Unpaid</span></p>
+  {% else %}<p class="empty">Nobody in this view took leave in this period.</p>{% endif %}
+</section>
+</div>
+
+{% elif view == 'trend' %}
+{% set c = d.trend %}
+<section class="panel">
+  <div class="panel-head"><h2>Ideal time and time booked, month by month</h2><span class="small muted">Choose a longer period above to see more months</span></div>
+  {% if d.month_rows|length < 2 %}
+  <p class="notice">A trend needs at least two months. <a href="{{ url_for('analytics.index', scope=scope, period='6', view='trend', group=group or None) }}">Show the last 6 months</a>.</p>
+  {% elif c %}
+  <svg class="chart" viewBox="0 0 {{ c.w }} {{ c.h }}" role="img" aria-labelledby="trend-title">
+    <title id="trend-title">Ideal hours and hours booked per month for {{ scope_label }}</title>
+    {% for y, v in c.ticks %}<line x1="{{ c.pad }}" x2="{{ c.w - c.pad }}" y1="{{ y }}" y2="{{ y }}" class="grid-line"/>
+      <text x="{{ c.pad - 6 }}" y="{{ y + 4 }}" class="axis" text-anchor="end">{{ v }}</text>{% endfor %}
+    {% for x, label in c.labels %}<text x="{{ x }}" y="{{ c.h - c.pad + 18 }}" class="axis" text-anchor="middle">{{ label }}</text>{% endfor %}
+    <polyline points="{{ c.ideal }}" class="line-ideal"/>
+    <polyline points="{{ c.booked }}" class="line-booked"/>
+    {% for x, y in c.dots %}<circle cx="{{ x }}" cy="{{ y }}" r="3.5" class="dot-booked"/>{% endfor %}
+  </svg>
+  <p class="hb-legend small"><span><span class="key c-proj"></span>Time booked</span> <span><span class="key c-ideal"></span>Ideal time</span></p>
+  {% endif %}
+  <div class="table-wrap mt"><table>
+    <thead><tr><th>Month</th><th class="num">Ideal</th><th class="num">Projects</th><th class="num">Paid leave</th><th class="num">Booked</th><th class="num">Utilisation</th></tr></thead>
+    <tbody>{% for r in d.month_rows %}<tr><td>{{ r.month.strftime('%B %Y') }}</td><td class="num">{{ r.ideal|days }}</td><td class="num">{{ r.project|days }}</td><td class="num">{{ r.leave_hours|days }}</td><td class="num">{{ r.booked|days }}</td><td class="num">{{ r.util if r.util is not none else '—' }}{% if r.util is not none %}%{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

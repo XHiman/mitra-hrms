@@ -1,0 +1,3 @@
+Flask>=3.0,<4
+waitress>=3.0  # production WSGI server (optional for development)
+openpyxl>=3.1  # staff import from Excel

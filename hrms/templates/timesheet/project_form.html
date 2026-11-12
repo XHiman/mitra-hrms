@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}{{ p.name if p else 'Add project' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ p.name if p else 'Add project' }}</h1>
+  <p>{% if p %}{{ p.hours|days }} hours booked by {{ p.people }} {{ 'person' if p.people == 1 else 'people' }} so far.{% else %}New projects are offered in everyone's timesheet as soon as they are saved as Active.{% endif %}</p></div>
+  <a class="btn secondary" href="{{ url_for('timesheet.project_list') }}">All projects</a></div>
+
+<div class="grid grid-3">
+<section class="panel">
+  <h2>Project details</h2>
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post">
+    {{ csrf() }}
+    <div class="form-grid">
+      <div class="field"><label for="pn">Project name</label>
+        <input type="text" id="pn" name="name" required maxlength="100" value="{{ form.get('name') or '' }}" placeholder="e.g. MahaSTRIDE"></div>
+      <div class="field"><label for="pc">Project code <span class="muted">(optional)</span></label>
+        <input type="text" id="pc" name="code" maxlength="20" value="{{ form.get('code') or '' }}" placeholder="e.g. MITRA-MS-01"></div>
+      <div class="field"><label for="pdep">Department</label>
+        <select id="pdep" name="department_id"><option value="">— None —</option>
+          {% for d in departments %}<option value="{{ d.id }}" {{ 'selected' if (form.get('department_id') or '')|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="phead">Project head / manager</label>
+        <select id="phead" name="head_employee_id"><option value="">— None —</option>
+          {% for e in heads %}<option value="{{ e.id }}" {{ 'selected' if (form.get('head_employee_id') or '')|string == e.id|string }}>{{ e.full_name }}{% if e.designation %}, {{ e.designation }}{% endif %}</option>{% endfor %}</select></div>
+      <div class="field"><label for="psd">Start date</label><input type="date" id="psd" name="start_date" value="{{ form.get('start_date') or '' }}"></div>
+      <div class="field"><label for="ped">End date <span class="muted">(blank if ongoing)</span></label><input type="date" id="ped" name="end_date" value="{{ form.get('end_date') or '' }}"></div>
+      <div class="field"><label for="pf">Funding source / client</label>
+        <input type="text" id="pf" name="funding" maxlength="150" value="{{ form.get('funding') or '' }}" placeholder="e.g. World Bank, Planning Department"></div>
+      <div class="field"><label for="pst">Status</label>
+        <select id="pst" name="status">{% for k, label in statuses.items() %}<option value="{{ k }}" {{ 'selected' if (form.get('status') or 'ACTIVE') == k }}>{{ label }}</option>{% endfor %}</select>
+        <div class="hint">Only Active projects can be chosen in timesheets.</div></div>
+      <div class="field full"><label for="pdesc">Description <span class="muted">(optional)</span></label>
+        <textarea id="pdesc" name="description" maxlength="500">{{ form.get('description') or '' }}</textarea></div>
+    </div>
+    <div class="actions"><button class="btn" type="submit">{{ 'Save changes' if p else 'Add project' }}</button>
+      <a class="btn secondary" href="{{ url_for('timesheet.project_list') }}">Cancel</a></div>
+  </form>
+</section>
+<section class="panel">
+  <h2>Who has booked time</h2>
+  {% if people %}
+  <ul class="list">{% for x in people %}
+    <li><strong>{{ x.full_name }}</strong> <span class="muted small">{{ x.emp_code }}</span>
+      <div class="small">{{ x.hours|days }} h, last on {{ x.last_day|date }}</div></li>{% endfor %}</ul>
+  {% else %}<p class="muted">{{ 'Nobody has booked time on this project yet.' if p else 'Hours appear here once staff book time on the project.' }}</p>{% endif %}
+</section>
+</div>
+{% endblock %}

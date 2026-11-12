@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}System settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>System settings</h1><p>Organisation-wide parameters. Every change is recorded in the audit log.</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.backups') }}">Database backups</a></div>
+<section class="panel medium">
+  <form method="post">
+    {{ csrf() }}
+    {% for key, value, desc in items %}
+      <div class="field"><label for="{{ key }}">{{ desc }}</label><input type="text" id="{{ key }}" name="{{ key }}" value="{{ value }}" maxlength="300">
+        <div class="hint">{{ key }}</div></div>
+    {% endfor %}
+    <button class="btn" type="submit">Save settings</button>
+  </form>
+</section>
+{% endblock %}
