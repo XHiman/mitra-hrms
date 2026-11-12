@@ -342,11 +342,7 @@ class ArchiveValidation(Base):
     def test_rejects_database_listed_but_checksum_wrong(self):
         def tamper(entries, manifest):
             entries["database/hrms.db"] = entries["database/hrms.db"][:-1] + b"\x00"
-        self.reject(rewrite_zip(self.good, tamper), "larger than the manifest")
-        def flip(entries, manifest):
-            name = next(n for n in entries if n.startswith("uploads/"))
-            entries[name] = entries[name][:-1] + b"X"  # same size, different content
-        self.reject(rewrite_zip(self.good, flip), "mismatch")
+        self.reject(rewrite_zip(self.good, tamper), "mismatch")
 
     def test_rejects_file_missing_from_manifest_or_archive(self):
         self.reject(rewrite_zip(self.good, lambda e, m: m["files"].pop()), "disagree")

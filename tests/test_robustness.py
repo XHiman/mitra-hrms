@@ -114,7 +114,8 @@ class PageSweep(Base):
                 "user_id": one("SELECT id FROM users WHERE username = 'priya'"), "role_id": 1,
                 "type_id": self.type_id("EL"), "workflow_id": one("SELECT id FROM approval_workflows"),
                 "slip_id": 1, "claim_id": 1, "notification_id": 1, "holiday_id": 1, "renewal_id": 1,
-                "name": "hrms-20260101-000000.db", "day": self.workday(-3).isoformat(), "rid": 1, "project_id": 1}
+                "name": "hrms-20260101-000000.db", "day": self.workday(-3).isoformat(), "rid": 1, "project_id": 1,
+                "token": "0" * 32}
 
     def test_no_page_crashes_for_any_role(self):
         args = self.sample_args()
