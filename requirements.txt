@@ -1,3 +1,4 @@
-Flask>=3.0,<4
-waitress>=3.0  # production WSGI server (optional for development)
-openpyxl>=3.1  # staff import from Excel
+Flask>=3.1,<4
+waitress>=3.0                          # optional local/Windows production server
+gunicorn>=22.0,<24; sys_platform != "win32"   # production server on Render (Linux)
+openpyxl>=3.1                          # staff import from Excel

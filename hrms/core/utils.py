@@ -51,6 +51,15 @@ def fmt_date(value):
     return value.strftime("%d %b %Y")
 
 
+def fmt_size(n):
+    """Human-readable byte count: 1.4 MB."""
+    n = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{int(n)} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
 def fmt_days(value):
     if value is None:
         return "—"

@@ -6,6 +6,10 @@ from pathlib import Path
 from flask import current_app, g
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+# Bump when schema.sql / _ADDED_COLUMNS change in a way a restore must know about. Stored in the SQLite
+# header (PRAGMA user_version) and written into every backup manifest. Databases created before this
+# existed report 0 and are treated as the baseline (1).
+SCHEMA_VERSION = 1
 
 
 _JOURNAL_MODES = {"WAL", "DELETE", "TRUNCATE", "PERSIST"}
@@ -98,6 +102,8 @@ def init_schema(path):
                 if (table, column) in _AFTER_ADD:
                     conn.execute(_AFTER_ADD[(table, column)])
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        if conn.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:  # never downgrade
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     finally:
         conn.close()
 

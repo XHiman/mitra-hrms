@@ -3,7 +3,7 @@
 {% block title %}System settings{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1>System settings</h1><p>Organisation-wide parameters. Every change is recorded in the audit log.</p></div>
-  <a class="btn secondary" href="{{ url_for('admin.backups') }}">Database backups</a></div>
+  <a class="btn secondary" href="{{ url_for('admin.backup_restore') }}">Backup &amp; Restore</a></div>
 <section class="panel medium">
   <form method="post">
     {{ csrf() }}

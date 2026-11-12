@@ -1,0 +1,29 @@
+# Render Blueprint (optional): "New > Blueprint" in the Render dashboard reads this file.
+# You can instead create the Web Service by hand with the same values (see RENDER_DEPLOYMENT.md).
+services:
+  - type: web
+    name: mitra-hrms
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash render_start.sh
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: HRMS_SECRET_KEY        # generated once by Render and kept across deploys; never commit it
+        generateValue: true
+      - key: HRMS_SECURE_COOKIES
+        value: "1"
+      - key: HRMS_TRUST_PROXY
+        value: "1"
+      - key: HRMS_ADMIN_USERNAME
+        value: admin
+      - key: HRMS_ADMIN_NAME
+        value: System Administrator
+      - key: HRMS_ADMIN_EMP_CODE
+        value: SYS001
+      - key: HRMS_ADMIN_PASSWORD    # set in the dashboard (not stored in this file); used only when the database is empty
+        sync: false

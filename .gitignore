@@ -1,0 +1,13 @@
+/HRMS_INTEGRATION_BLUEPRINT
+/instance
+/instance/
+__pycache__/
+*.pyc
+.env
+.env.*
+.venv/
+venv/
+*.db
+*.db-wal
+*.db-shm
+hrms-*.zip

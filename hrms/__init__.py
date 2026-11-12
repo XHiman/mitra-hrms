@@ -13,7 +13,7 @@ from flask import Flask, g, render_template
 from .config import Config, _secret_key
 from .core import db, security
 from .core.rbac import has_perm
-from .core.utils import fmt_date, fmt_days, leave_year_label, to_local
+from .core.utils import fmt_date, fmt_days, fmt_size, leave_year_label, to_local
 from .services import tasks
 from .services.notifications import unread_count
 
@@ -46,6 +46,7 @@ def _daily_jobs_hook(app):
 def create_app(overrides=None):
     app = Flask(__name__, instance_path=Config.INSTANCE_DIR, instance_relative_config=False)
     app.config.from_object(Config)
+    app.debug = False  # never run the debugger / reloader; this is the production entry point
     app.config["SECRET_KEY"] = _secret_key()
     if overrides:
         app.config.update(overrides)
@@ -67,7 +68,7 @@ def create_app(overrides=None):
         app.register_blueprint(bp)
 
     from .services.payroll import fmt_money
-    app.jinja_env.filters.update(date=fmt_date, days=fmt_days, dt=to_local, year_label=leave_year_label, money=fmt_money)
+    app.jinja_env.filters.update(date=fmt_date, days=fmt_days, dt=to_local, year_label=leave_year_label, money=fmt_money, filesize=fmt_size)
     app.jinja_env.globals.update(csrf_token=security.csrf_token, can=has_perm)  # usable inside imported macros
 
     @app.context_processor
@@ -94,9 +95,18 @@ def create_app(overrides=None):
     app.register_error_handler(403, error_page(403, "Access denied",
                                                "You are not authorised to access this page or perform this action."))
     app.register_error_handler(404, error_page(404, "Not found", "The page or record you requested does not exist."))
-    app.register_error_handler(413, error_page(413, "File too large", "The uploaded file exceeds the 5 MB limit."))
+    app.register_error_handler(413, error_page(413, "File too large", "The uploaded file exceeds the size limit."))
     app.register_error_handler(500, error_page(500, "Something went wrong",
                                                "An unexpected error occurred. It has been logged."))
+
+    @app.route("/healthz")
+    def health():
+        """Unauthenticated liveness check for the hosting platform. Reveals nothing beyond up/down."""
+        try:
+            db.scalar("SELECT 1")
+        except Exception:  # noqa: BLE001
+            return {"status": "error"}, 503
+        return {"status": "ok"}
 
     from .cli import register_cli
     register_cli(app)

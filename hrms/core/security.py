@@ -4,14 +4,15 @@ import re
 import secrets
 import time
 
-from flask import abort, current_app, g, redirect, request, session, url_for
+from flask import Response, abort, current_app, g, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from . import maintenance
 from .db import query
 from .rbac import permissions_for_role
 from .utils import get_int_setting
 
-PUBLIC_ENDPOINTS = {"auth.login", "static", "auth.logout"}
+PUBLIC_ENDPOINTS = {"auth.login", "static", "auth.logout", "health"}
 PASSWORD_CHANGE_ENDPOINTS = {"auth.change_password", "auth.logout", "static"}
 
 
@@ -88,6 +89,11 @@ def csrf_token():
 # ---------------------------------------------------------------- request hooks
 def before_request():
     g.user = None
+    if maintenance.active() and request.endpoint != "health":
+        return Response("The system is being restored from a backup. Please try again in a minute.", 503,
+                        headers={"Retry-After": "60", "Content-Type": "text/plain; charset=utf-8"})
+    if request.endpoint == "admin.restore_upload":  # backup archives are larger than the global request limit
+        request.max_content_length = current_app.config["RESTORE_MAX_UPLOAD_BYTES"]
     uid = session.get("uid")
     if uid:
         now = int(time.time())

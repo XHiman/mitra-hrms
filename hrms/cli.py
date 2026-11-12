@@ -70,6 +70,28 @@ def bootstrap():
                           "credited when that officer approves the comp-off claim.", now, now))
 
 
+def create_admin_user(username, name, emp_code, password=None, remarks="Created via CLI"):
+    """Create the employee + SYSADMIN user. The password (generated if not given) must be changed at first
+    login. Returns the password. Raises ValueError for a duplicate username or a password breaking the policy."""
+    from .core.security import password_problems
+    if query("SELECT 1 FROM users WHERE username = ?", (username,), one=True):
+        raise ValueError("Username already exists.")
+    if password is not None:
+        problems = password_problems(password, username)
+        if problems:
+            raise ValueError("The given password needs: " + "; ".join(problems) + ".")
+    password = password or temporary_password()
+    with transaction() as conn:
+        now = utcnow_iso()
+        emp_id = conn.execute(
+            """INSERT INTO employees (emp_code, full_name, status, created_at, updated_at)
+               VALUES (?, ?, 'ACTIVE', ?, ?)""", (emp_code, name, now, now)).lastrowid
+        role_id = conn.execute("SELECT id FROM roles WHERE code = 'SYSADMIN'").fetchone()["id"]
+        uid = _insert_user(conn, emp_id, username, role_id, password, 1, now)
+        audit.log("USER_CREATED", "user", uid, new={"username": username, "role": "SYSADMIN"}, remarks=remarks)
+    return password
+
+
 def _insert_user(conn, emp_id, username, role_id, password, must_change, now):
     return conn.execute(
         """INSERT INTO users (employee_id, username, password_hash, role_id, must_change_password,
@@ -91,18 +113,10 @@ def register_cli(app):
     def create_admin_cmd(username, name, emp_code):
         """Create a System Administrator account with a one-time password."""
         bootstrap()
-        if query("SELECT 1 FROM users WHERE username = ?", (username,), one=True):
-            raise click.ClickException("Username already exists.")
-        password = temporary_password()
-        with transaction() as conn:
-            now = utcnow_iso()
-            emp_id = conn.execute(
-                """INSERT INTO employees (emp_code, full_name, status, created_at, updated_at)
-                   VALUES (?, ?, 'ACTIVE', ?, ?)""", (emp_code, name, now, now)).lastrowid
-            role_id = conn.execute("SELECT id FROM roles WHERE code = 'SYSADMIN'").fetchone()["id"]
-            uid = _insert_user(conn, emp_id, username, role_id, password, 1, now)
-            audit.log("USER_CREATED", "user", uid, new={"username": username, "role": "SYSADMIN"},
-                      remarks="Created via CLI")
+        try:
+            password = create_admin_user(username, name, emp_code, remarks="Created via CLI")
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
         click.echo(f"Administrator '{username}' created. One-time password: {password}")
         click.echo("The password must be changed at first login.")
 
@@ -248,6 +262,71 @@ def register_cli(app):
         except ValidationError as exc:
             raise click.ClickException(str(exc))
         click.echo(f"Holidays: {added} added, {updated} updated.")
+
+    @app.cli.command("render-init")
+    def render_init_cmd():
+        """Startup task for hosting (Render): create/upgrade the schema; if the database has no users, create
+        the first administrator. Never loads demo data into a database that already has users."""
+        import os
+        bootstrap()
+        if query("SELECT 1 FROM users", one=True):
+            click.echo("Database already has users; nothing to create.")
+            return
+        if os.environ.get("HRMS_SEED_DEMO") == "1":
+            click.echo("HRMS_SEED_DEMO=1 and the database is empty: loading demo data.")
+            click.get_current_context().invoke(seed_demo_cmd)
+            return
+        username = os.environ.get("HRMS_ADMIN_USERNAME") or "admin"
+        name = os.environ.get("HRMS_ADMIN_NAME") or "System Administrator"
+        code = os.environ.get("HRMS_ADMIN_EMP_CODE") or "SYS001"
+        given = os.environ.get("HRMS_ADMIN_PASSWORD") or None
+        try:
+            password = create_admin_user(username, name, code, given, remarks="Created at first start-up")
+        except ValueError as exc:
+            if given is None:
+                raise click.ClickException(str(exc))
+            click.echo(f"WARNING: HRMS_ADMIN_PASSWORD was not used ({exc}) A one-time password is generated instead.")
+            password, given = create_admin_user(username, name, code, None, remarks="Created at first start-up"), None
+        click.echo(f"First administrator '{username}' created (the database was empty).")
+        if given is None:
+            click.echo(f"One-time password (shown once, change it at first login): {password}")
+        else:
+            click.echo("Sign in with the password from HRMS_ADMIN_PASSWORD; it must be changed at first login.")
+
+    @app.cli.command("backup-full")
+    def backup_full_cmd():
+        """Write a full-system backup ZIP (database + uploads + manifest) to the backup folder."""
+        from .services import backup
+        bootstrap()
+        info = backup.create_backup("full", created_by="cli")
+        audit.log("BACKUP_FULL_CREATED", "system", None, new={"file": info["name"], "size": info["size"]},
+                  remarks="Created via CLI")
+        click.echo(f"Backup written to {info['path']} ({info['size']} bytes)")
+
+    @app.cli.command("restore-backup")
+    @click.argument("zipfile_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+    @click.option("--yes", is_flag=True, help="Confirm that the current data may be replaced.")
+    def restore_backup_cmd(zipfile_path, yes):
+        """Validate a backup ZIP and, with --yes, restore it (a safety backup of current data is taken first)."""
+        from .services import backup
+        bootstrap()
+        try:
+            report = backup.validate_archive(zipfile_path)
+        except backup.BackupError as exc:
+            raise click.ClickException(f"Backup rejected: {exc}")
+        for step in report["steps"]:
+            click.echo(f"  ok: {step}")
+        click.echo(f"Backup made {report['manifest'].get('created_at')}: {report['counts']}, {report['upload_count']} uploads")
+        for w in report["warnings"]:
+            click.echo(f"  note: {w}")
+        if not yes:
+            click.echo("Validation passed. Run again with --yes to replace the current data.")
+            return
+        try:
+            backup.restore_archive(zipfile_path, None)
+        except backup.BackupError as exc:
+            raise click.ClickException(str(exc))
+        click.echo("Restore complete.")
 
     @app.cli.command("backup-db")
     def backup_db_cmd():

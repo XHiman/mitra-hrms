@@ -7,6 +7,17 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   });
 
+  // Long-running forms (backup, restore): disable the button and say what is happening.
+  document.addEventListener("submit", function (e) {
+    var msg = e.target.getAttribute("data-busy");
+    if (!msg || e.defaultPrevented) return;
+    var note = e.target.querySelector(".busy-note");
+    if (note) note.textContent = msg;
+    setTimeout(function () {
+      e.target.querySelectorAll("button[type=submit]").forEach(function (b) { b.disabled = true; });
+    }, 0);
+  });
+
   // Leave application: live working-day count from the server's own calculation.
   var form = document.getElementById("apply-form");
   if (form) {

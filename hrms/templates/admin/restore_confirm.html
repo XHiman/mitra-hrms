@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Confirm restore{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Confirm restore</h1>
+  <p>The backup passed every check. Nothing has been changed yet.</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.backup_restore') }}">Back</a></div>
+
+<div class="grid grid-3">
+<div>
+<section class="panel">
+  <h2>What was checked</h2>
+  <ul class="list">{% for st in s.steps %}<li><span class="badge good">OK</span> {{ st }}</li>{% endfor %}</ul>
+  {% for w in s.warnings %}<div class="notice mt">{{ w }}</div>{% endfor %}
+</section>
+<section class="panel">
+  <h2>The backup contains</h2>
+  <dl class="facts compact">
+    <dt>File</dt><dd>{{ s.filename }} ({{ s.zip_bytes|filesize }})</dd>
+    <dt>Made on</dt><dd>{{ s.created_at|dt }}{% if s.created_by %} by {{ s.created_by }}{% endif %}</dd>
+    <dt>Application version</dt><dd>{{ s.app_version }}{% if s.git_commit %} <span class="code">{{ s.git_commit[:12] }}</span>{% endif %}</dd>
+    <dt>Database schema</dt><dd>version {{ s.schema_version }} (this server: {{ info.schema_expected }})</dd>
+    <dt>User accounts</dt><dd>{{ s.counts.get('users', 0) }}</dd>
+    <dt>Employees</dt><dd>{{ s.counts.get('employees', 0) }}</dd>
+    <dt>Leave requests</dt><dd>{{ s.counts.get('leave_requests', 0) }}</dd>
+    <dt>Timesheet entries</dt><dd>{{ s.counts.get('timesheet_entries', 0) }}</dd>
+    <dt>Salary slips</dt><dd>{{ s.counts.get('salary_slips', 0) }}</dd>
+    <dt>Audit entries</dt><dd>{{ s.counts.get('audit_logs', 0) }}</dd>
+    <dt>Uploaded documents</dt><dd>{{ s.uploads }} ({{ s.upload_bytes|filesize }})</dd>
+  </dl>
+</section>
+</div>
+<div>
+<section class="panel">
+  <h2>This server has now</h2>
+  <dl class="facts compact">
+    <dt>Database</dt><dd>{{ info.db_bytes|filesize }}, schema {{ info.schema_version }}</dd>
+    <dt>Uploaded documents</dt><dd>{{ info.uploads_count }} ({{ info.uploads_bytes|filesize }})</dd>
+  </dl>
+</section>
+<section class="panel">
+  <h2>Replace everything with this backup?</h2>
+  <div class="notice"><strong>This replaces all current data</strong> (database and uploaded documents) with the backup. Everything entered
+    since the backup was made is lost. All users are signed out, including you; afterwards sign in with an account that exists in the backup.
+    Your server's secret key and settings are not changed. A safety copy of the current data is made first and put back automatically if the restore fails.</div>
+  <form method="post" action="{{ url_for('admin.restore_confirm', token=token) }}" data-busy="Restoring. Do not close this page; it can take a minute." data-confirm="Last chance: replace all current data with this backup?">{{ csrf() }}
+    <label class="check"><input type="checkbox" name="understand" value="1" required> <span>I understand that all current data will be replaced.</span></label>
+    <div class="field"><label for="ct">Type RESTORE to confirm</label>
+      <input type="text" id="ct" name="confirm_text" required autocomplete="off" maxlength="10"></div>
+    <div class="actions"><button class="btn danger" type="submit">Restore this backup</button>
+      <span class="busy-note small muted" role="status" aria-live="polite"></span></div>
+  </form>
+  <form method="post" action="{{ url_for('admin.restore_cancel', token=token) }}" class="mt">{{ csrf() }}
+    <button class="btn secondary" type="submit">Cancel</button></form>
+</section>
+</div>
+</div>
+{% endblock %}

@@ -61,7 +61,7 @@
       {% if can('org.manage') %}{{ nav(url_for('admin.org'), 'Organisation', 'org', ep == 'admin.org') }}{% endif %}
       {% if can('leave_config.manage') %}{{ nav(url_for('admin.leave_types'), 'Leave and holidays', 'sliders', ep.startswith('admin.leave_type')) }}{% endif %}
       {% if can('workflow.manage') %}{{ nav(url_for('admin.workflows'), 'Approval workflows', 'workflow', ep.startswith('admin.workflow')) }}{% endif %}
-      {% if can('settings.manage') %}{{ nav(url_for('admin.settings'), 'Settings and backups', 'settings', ep in ('admin.settings', 'admin.backups')) }}{% endif %}
+      {% if can('settings.manage') %}{{ nav(url_for('admin.settings'), 'Settings and backups', 'settings', ep in ('admin.settings', 'admin.backups') or ep.startswith('admin.backup') or ep.startswith('admin.restore')) }}{% endif %}
       {% endif %}
 
       {% if can('audit.view_own') or can('audit.view_scope') or can('audit.view_all') %}

@@ -60,9 +60,14 @@ def log(action, entity, entity_id=None, prev=None, new=None, remarks=None, actor
 
 def verify_chain():
     """Returns (ok, rows_checked, first_bad_id)."""
+    return verify_rows(query("SELECT * FROM audit_logs ORDER BY id"))
+
+
+def verify_rows(rows):
+    """Verify a sequence of audit rows (dict-like, ordered by id). Used on the live table and on backups."""
     prev_hash = GENESIS
     count = 0
-    for row in query("SELECT * FROM audit_logs ORDER BY id"):
+    for row in rows:
         rec = dict(row)
         if rec["prev_hash"] != prev_hash or _digest(prev_hash, rec) != rec["hash"]:
             return False, count, rec["id"]

@@ -34,9 +34,10 @@ def system_alerts():
                    (datetime.now(timezone.utc).replace(microsecond=0).isoformat(),), one=True)["n"]
     if locked:
         alerts.append(("warning", f"{locked} user account(s) are temporarily locked after failed logins.", "admin.users"))
-    backups = sorted(Path(current_app.config["BACKUP_DIR"]).glob("hrms-*.db"))
-    if not backups or datetime.fromtimestamp(backups[-1].stat().st_mtime) < datetime.now() - timedelta(days=1):
-        alerts.append(("warning", "No database backup in the last 24 hours.", "admin.backups"))
+    last = query("SELECT ts FROM audit_logs WHERE action IN ('BACKUP_FULL_CREATED', 'DATABASE_BACKUP') "
+                 "ORDER BY id DESC LIMIT 1", one=True)
+    if not last or datetime.fromisoformat(last["ts"]) < datetime.now(timezone.utc) - timedelta(days=1):
+        alerts.append(("warning", "No backup has been downloaded in the last 24 hours.", "admin.backup_restore"))
     return alerts
 
 
@@ -59,4 +60,4 @@ def dashboard():
                            by_role=by_role, recent=recent, year=year)
 
 
-from . import leave_config, org, system, users, workflows  # noqa: E402,F401  (register routes)
+from . import backup, leave_config, org, system, users, workflows  # noqa: E402,F401  (register routes)

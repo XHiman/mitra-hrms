@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf %}
+{% block title %}Backup and restore{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Backup &amp; Restore</h1>
+  <p>Download a complete copy of the system (database and uploaded documents), and restore one later.</p></div>
+  <a class="btn secondary" href="{{ url_for('admin.settings') }}">System settings</a></div>
+
+{% if info.on_render %}
+<div class="notice"><strong>This server's storage is temporary.</strong> On Render's free plan the database and uploads are erased
+  whenever the service is redeployed, restarted, or goes to sleep after 15 minutes without visitors. Backups kept on the server are
+  erased the same way. <strong>Only a backup file you download to your own computer protects your data.</strong>
+  Download one before every update, and regularly while the system is in use.</div>
+{% endif %}
+
+<div class="grid grid-2">
+<section class="panel">
+  <h2>Download a full system backup</h2>
+  <p class="small muted">One ZIP file containing the database, all uploaded documents and a manifest with checksums.
+    It contains personal data (including salary details and password hashes): store it somewhere private and never put it in the code repository.
+    It does not contain server passwords or secret keys.</p>
+  <form method="post" action="{{ url_for('admin.backup_full_download') }}" data-busy="Preparing the backup. Please wait; the download starts automatically.">{{ csrf() }}
+    <button class="btn" type="submit">Download Full System Backup</button>
+    <span class="busy-note small muted" role="status" aria-live="polite"></span>
+  </form>
+  <p class="small muted mt">After downloading, check that the file is more than a few kilobytes and keep a copy outside this project.</p>
+</section>
+
+<section class="panel" id="restore">
+  <h2>Upload &amp; restore a backup</h2>
+  <p class="small muted">Choose a backup ZIP made by this system. It is checked completely first (file names, checksums, database
+    integrity, compatibility). You then see a summary and must confirm before anything is replaced.</p>
+  <form method="post" action="{{ url_for('admin.restore_upload') }}" enctype="multipart/form-data" data-busy="Uploading and checking the backup. Please wait.">{{ csrf() }}
+    <div class="field"><label for="bk">Backup file (.zip, up to {{ max_mb }} MB)</label>
+      <input type="file" id="bk" name="backup" accept=".zip,application/zip" required></div>
+    <button class="btn secondary" type="submit">Upload and check backup</button>
+    <span class="busy-note small muted" role="status" aria-live="polite"></span>
+  </form>
+</section>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>System status</h2></div>
+  <div class="grid grid-2">
+  <dl class="facts compact">
+    <dt>Application version</dt><dd>{{ info.app_version }}</dd>
+    <dt>Code version (commit)</dt><dd>{% if info.commit %}<span class="code">{{ info.commit[:12] }}</span>{% else %}not available{% endif %}</dd>
+    <dt>Deployment</dt><dd>{{ info.deployment_id or ('Render' if info.on_render else 'Local / self-hosted') }}</dd>
+    <dt>Server started</dt><dd>{{ info.process_started|dt }}</dd>
+    <dt>Database schema</dt><dd>version {{ info.schema_version }}{% if info.schema_version != info.schema_expected %} <span class="badge warning">expected {{ info.schema_expected }}</span>{% endif %}</dd>
+    <dt>Python / SQLite</dt><dd>{{ info.python }} / {{ info.sqlite }} ({{ info.journal_mode }} mode)</dd>
+  </dl>
+  <dl class="facts compact">
+    <dt>Database health</dt><dd>{% if info.db_ok %}<span class="badge good">OK</span>{% else %}<span class="badge critical">Problem</span> {{ info.db_check }}{% endif %}</dd>
+    <dt>Database size</dt><dd>{{ info.db_bytes|filesize }}{% if info.wal_bytes %} <span class="muted small">(+ {{ info.wal_bytes|filesize }} log)</span>{% endif %}</dd>
+    <dt>Uploaded documents</dt><dd>{{ info.uploads_count }} file(s), {{ info.uploads_bytes|filesize }}</dd>
+    <dt>Free disk space</dt><dd>{{ info.disk_free|filesize if info.disk_free is not none else 'unknown' }}</dd>
+    <dt>Audit log integrity</dt><dd>{% if info.audit_ok %}<span class="badge good">Intact</span> {{ info.audit_entries }} entries{% else %}<span class="badge critical">Broken at #{{ info.audit_bad_id }}</span>{% endif %}</dd>
+    <dt>Last backup downloaded</dt><dd>{% if info.last_backup %}{{ info.last_backup.ts|dt }}{% else %}<span class="due-soon">never recorded</span>{% endif %}</dd>
+    <dt>Last restore</dt><dd>{% if info.last_restore %}{{ info.last_restore.ts|dt }}: {{ 'succeeded' if info.last_restore.action == 'BACKUP_RESTORED' else 'failed (previous data kept)' }}{% else %}none recorded{% endif %}</dd>
+  </dl>
+  </div>
+  <p class="small muted">"Last backup" is read from the audit log, which is part of the database. If this server was reset, it shows
+    whatever the currently loaded data recorded.</p>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Backup history</h2></div>
+  <p class="small muted">Files marked "Download (on this server)" are temporary copies and disappear when the server restarts or is redeployed.
+    This list is erased then too. Your downloaded files are the real backups.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date and time</th><th>Type</th><th>Status</th><th class="num">Size</th><th>By</th><th>Copy</th></tr></thead>
+    <tbody>
+    {% for b in history %}
+      <tr><td class="nowrap">{{ b.created_at|dt }}</td>
+        <td>{{ {'full': 'Full system backup', 'prerestore': 'Safety copy before a restore', 'database-only': 'Database only'}.get(b.kind, b.kind) }}</td>
+        <td>{% if b.status == 'success' %}<span class="badge good">Completed</span>{% else %}<span class="badge critical">Failed</span>{% if b.error %}<div class="small muted">{{ b.error }}</div>{% endif %}{% endif %}</td>
+        <td class="num">{{ b.size|filesize if b.size else '—' }}</td><td>{{ b.created_by or '—' }}</td>
+        <td>{% if b.retained and not b.legacy_db %}<a href="{{ url_for('admin.backup_file', name=b.name) }}">Download (on this server)</a>
+            {% elif b.retained %}<a href="{{ url_for('admin.backup_download', name=b.name) }}">Download database</a>
+            {% elif b.status == 'success' %}<span class="muted">Not kept on this server</span>{% else %}—{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="empty">No backups have been made since this server started.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}
